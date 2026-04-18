@@ -1,0 +1,31 @@
+# Ignore all files by default
+*
+
+# Allow directories so Git can traverse them
+!*/
+!/.gitignore
+
+# Include specific files
+!*.R
+!*.txt
+!*.xlsx
+!README.md
+!Logos/**
+
+# Explicitly ignore directories we don't want to track
+/docs/
+/Dropbox/
+/Actas/
+/cache_backup/
+/scratch/
+.Rproj.user/
+.positai/
+
+# Explicitly ignore cache and system files
+*.rds
+*.RData
+*.Rdata
+.DS_Store
+.Rhistory
+.Ruserdata
+*.Rproj
