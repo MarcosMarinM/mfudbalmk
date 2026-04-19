@@ -659,7 +659,7 @@ if (hubo_cambios) {
 
 
     # --- GENERATE PLAYERS LIST PAGE ---
-    path_to_players_page <- file.path(RUTA_SALIDA_RAIZ, "fudbalerki.html")
+    path_to_players_page <- file.path(RUTA_SALIDA_RAIZ, paste0(nombres_archivos_traducidos$players, ".html"))
     message("     > Generating: ", basename(path_to_players_page))
 
     alphabet_blocks <- map(IDIOMAS_SOPORTADOS, function(curr_lang_code) {

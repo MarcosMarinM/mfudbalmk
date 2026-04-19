@@ -1,0 +1,16 @@
+    id_partido competicion_nombre competicion_temporada jornada      fecha
+706   10089893   Трета лига ЗАПАД                 25/26      14 22.03.2026
+     hora   local visitante goles_local goles_visitante penales_local
+706 14:30 Камјани   Љуботен           7               0            NA
+    penales_visitante es_resultado_oficial
+706                NA                FALSE
+                                               estadio arbitro_principal_nombre
+706 Игралиште  Во  С. Камењане, С. Камењане , Боговиње           Спироски Марко
+    arbitro_asist_1_nombre arbitro_asist_2_nombre arbitro_asist_4_nombre
+706         Љиворека Хабиљ             Сали Идрис                   <NA>
+    delegado_nombre kontrolor var_1_nombre var_2_nombre var_3_nombre
+706            <NA>      <NA>         <NA>         <NA>         <NA>
+    temporada_display es_cancelado categoria vid_natprevaruvanje min_age
+706             25/26        FALSE   Сениори          Трета лига      16
+    max_age division duracion_partido es_partido_seleccion
+706      99     <NA>               90                FALSE

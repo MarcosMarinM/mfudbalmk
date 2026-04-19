@@ -1121,6 +1121,7 @@ main <- function() {
       comp_idx, length(competiciones_rangos), comp$label, length(comp$ids)
     ))
     consecutivos_vacios <- 0
+    consecutivos_sin_acta <- 0
 
     for (id_num in comp$ids) {
       id_chr <- as.character(id_num)
@@ -1148,6 +1149,7 @@ main <- function() {
             }
           } else {
             consecutivos_vacios <- 0
+            consecutivos_sin_acta <- 0
             cache[[id_chr]]$oficiales_delegacion <- del_data
             partidos_procesados <- partidos_procesados + 1
             # Forzar guardado inmediato en backfill ya que 'next' saltará el guardado al final del loop
@@ -1158,6 +1160,7 @@ main <- function() {
         }
         # Si ya tiene delegiranje, resetear contador (es un partido válido en caché)
         consecutivos_vacios <- 0
+        consecutivos_sin_acta <- 0
         partidos_skipped <- partidos_skipped + 1
         next
       }
@@ -1245,6 +1248,11 @@ main <- function() {
             "   ID %s: partido programado para %s. Esperando 120 min post-inicio.",
             id_chr, format(fecha_hora_partido, "%d.%m.%Y %H:%M")
           ))
+          consecutivos_sin_acta <- consecutivos_sin_acta + 1
+          if (consecutivos_sin_acta >= 8) {
+            message(sprintf("   >>> EARLY EXIT (Resultados): 8 partidos seguidos sin acta en %s.", comp$label))
+            break
+          }
           next # No intentar izvestaj todavía
         }
         # Si fecha pasada + 120 min, caer al paso 2 (izvestaj)
@@ -1298,6 +1306,7 @@ main <- function() {
             cache[[id_chr]] <- resultado
             cache_ids <- c(cache_ids, id_chr)
             partidos_procesados <- partidos_procesados + 1
+            consecutivos_sin_acta <- 0
             message(sprintf("   OK ID %s: ARCHIVED (datos completos)", id_chr))
 
             tracking <- actualizar_tracking(
@@ -1313,6 +1322,11 @@ main <- function() {
               "   ~ ID %s: Live/Post (izvestaj sin alineaciones, intento %d)",
               id_chr, intentos_prev + 1L
             ))
+            consecutivos_sin_acta <- consecutivos_sin_acta + 1
+            if (consecutivos_sin_acta >= 8) {
+              message(sprintf("   >>> EARLY EXIT (Resultados): 8 partidos seguidos sin acta en %s.", comp$label))
+              break
+            }
             tracking <- actualizar_tracking(
               tracking, id_chr, "Live_Post",
               fecha_partido = fecha_p_prev, ahora = ahora,
@@ -1327,6 +1341,11 @@ main <- function() {
             "   ~ ID %s: Live/Post (izvestaj no disponible, intento %d)",
             id_chr, intentos_prev + 1L
           ))
+          consecutivos_sin_acta <- consecutivos_sin_acta + 1
+          if (consecutivos_sin_acta >= 8) {
+            message(sprintf("   >>> EARLY EXIT (Resultados): 8 partidos seguidos sin acta en %s.", comp$label))
+            break
+          }
           tracking <- actualizar_tracking(
             tracking, id_chr, "Live_Post",
             fecha_partido = fecha_p_prev, ahora = ahora,

@@ -66,3 +66,4 @@
 "Црвена Ѕвезда Јосифово","Crvena Zvezda Josifovo"
 "ФЦП Палатица","FCP Palatica"
 "ЕС","ES"
+"ССК Нова","SSK Nova"

@@ -343,7 +343,8 @@ if (exists("official_results_df") && nrow(official_results_df) > 0 && nrow(parti
 
 message("   > Master `partidos_df` created.")
 
-# Treat Baraz competitions as part of the previous season for all downstream processing.
+# Treat Baraz competitions as part of the previous season for grouping/sorting,
+# but preserve the original season digits for display.
 ajustar_temporada_baraz <- function(nombre_competicion, temporada) {
   nombre_chr <- as.character(nombre_competicion)
   temporada_chr <- as.character(temporada)
@@ -361,7 +362,10 @@ ajustar_temporada_baraz <- function(nombre_competicion, temporada) {
 }
 
 partidos_df <- partidos_df %>%
-  mutate(competicion_temporada = ajustar_temporada_baraz(competicion_nombre, competicion_temporada))
+  mutate(
+    temporada_display = competicion_temporada,
+    competicion_temporada = ajustar_temporada_baraz(competicion_nombre, competicion_temporada)
+  )
 
 # 10.1.1.0 Calculate cancellation status based on ID list
 partidos_df <- partidos_df %>%
@@ -1250,7 +1254,7 @@ if (exists("partidos_df") && nrow(partidos_df) > 0) {
     # Recompute combined competitions after adjusting match competition names
     competiciones_base_df <- partidos_df %>%
       filter(competicion_nombre != "\u0420\u0435\u043f\u0440\u0435\u0437\u0435\u043d\u0442\u0430\u0446\u0438\u0458\u0430") %>%
-      distinct(competicion_nombre, competicion_temporada, categoria, division, vid_natprevaruvanje, min_age, max_age) %>%
+      distinct(competicion_nombre, competicion_temporada, temporada_display, categoria, division, vid_natprevaruvanje, min_age, max_age) %>%
       mutate(
         nombre_lower = tolower(competicion_nombre),
         start_year = as.integer(str_extract(competicion_temporada, "^\\d{2,4}")),
@@ -1301,7 +1305,7 @@ if (exists("partidos_df") && nrow(partidos_df) > 0) {
           paste0(base_name_mk, " (", group_label, ")"),
           coalesce(base_name_mk, competicion_nombre)
         ),
-        competicion_id = generar_id_seguro(paste(name_for_id, competicion_temporada))
+        competicion_id = generar_id_seguro(paste(name_for_id, coalesce(temporada_display, competicion_temporada)))
       ) %>%
       select(-name_for_id, -group_label)
   } else {
@@ -1333,9 +1337,10 @@ if (exists("partidos_df") && nrow(partidos_df) > 0) {
       competiciones_unicas_df <- competiciones_unicas_df %>%
         mutate(
           .group_label = stringr::str_match(competicion_nombre, "\\(([^)]*)\\)\\s*$")[,2],
+          .display_season = coalesce(temporada_display, competicion_temporada),
           !!target_col := if_else(competicion_nombre == "\u0420\u0435\u043f\u0440\u0435\u0437\u0435\u043d\u0442\u0430\u0446\u0438\u0458\u0430",
             "\u0420\u0435\u043f\u0440\u0435\u0437\u0435\u043d\u0442\u0430\u0446\u0438\u0458\u0430",
-            paste0(coalesce(base_name_mk, competicion_nombre), if_else(!is.na(.group_label) & nzchar(.group_label), paste0(" (", .group_label, ")"), ""), " ", competicion_temporada)
+            paste0(coalesce(base_name_mk, competicion_nombre), if_else(!is.na(.group_label) & nzchar(.group_label), paste0(" (", .group_label, ")"), ""), " ", .display_season)
           )
         )
       
@@ -1377,10 +1382,11 @@ if (exists("partidos_df") && nrow(partidos_df) > 0) {
         competiciones_unicas_df <- competiciones_unicas_df %>%
           mutate(
             .group_label = stringr::str_match(competicion_nombre, "\\(([^)]*)\\)\\s*$")[,2],
-            .group_label_lat = if_else(!is.na(.group_label), stringr::str_replace_all(stringr::str_to_lower(.group_label), MAP_CYR_TO_LAT_DIACRITICS) %>% stringr::str_to_upper(), NA_character_)
+            .group_label_lat = if_else(!is.na(.group_label), stringr::str_replace_all(stringr::str_to_lower(.group_label), MAP_CYR_TO_LAT_DIACRITICS) %>% stringr::str_to_upper(), NA_character_),
+            .display_season = coalesce(temporada_display, competicion_temporada)
           ) %>%
           mutate(!!target_col := if_else(!is.na(.data[[base_col]]),
-            paste0(.data[[base_col]], if_else(!is.na(.group_label_lat) & nzchar(.group_label_lat), paste0(" (", .group_label_lat, ")"), ""), " ", competicion_temporada),
+            paste0(.data[[base_col]], if_else(!is.na(.group_label_lat) & nzchar(.group_label_lat), paste0(" (", .group_label_lat, ")"), ""), " ", .display_season),
             NA_character_
           ))
 

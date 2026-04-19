@@ -1391,6 +1391,12 @@ function initializeCompetitionHub() {
 writeLines(script_js, file.path(RUTA_ASSETS_COMPARTIDOS, "script.js"))
 message("style.css and script.js files saved to the assets folder.")
 
+### 12.3. Save Favicon (if exists)
+if (file.exists("favicon.png")) {
+  file.copy("favicon.png", file.path(RUTA_SALIDA_RAIZ, "favicon.png"), overwrite = TRUE)
+  message("favicon.png copied to the root of the web folder.")
+}
+
 
 # ============================================================================ #
 # ==                INTERRUPTORES DE CONTROL DE GENERACI\u00d3N                  ==
@@ -1399,13 +1405,13 @@ message("style.css and script.js files saved to the assets folder.")
 # regeneran. Esto es \u00fatil para hacer pruebas r\u00e1pidas en una secci\u00f3n.
 # Para una construcci\u00f3n completa, todos deben estar en TRUE.
 
-GENERAR_PAGINAS_ESTATICAS <- FALSE # Incluye: Inicio, Archivo, Lista de Equipos/Jugadoras, Acerca de
-GENERAR_PAGINAS_COMPETICION <- FALSE # Todas las p\u00e1ginas de competiciones (men\u00fas y tablas)
-GENERAR_PERFILES_PARTIDO <- FALSE # Perfiles individuales para cada partido
+GENERAR_PAGINAS_ESTATICAS <- TRUE # Incluye: Inicio, Archivo, Lista de Equipos/Jugadoras, Acerca de
+GENERAR_PAGINAS_COMPETICION <- TRUE # Todas las p\u00e1ginas de competiciones (men\u00fas y tablas)
+GENERAR_PERFILES_PARTIDO <- TRUE # Perfiles individuales para cada partido
 GENERAR_PERFILES_JUGADORA <- TRUE # Perfiles individuales para cada jugadora
-GENERAR_PERFILES_EQUIPO <- FALSE # Perfiles individuales para cada equipo
-GENERAR_PERFILES_ARBITRO <- FALSE # Perfiles individuales para cada \u00e1rbitro
-GENERAR_PERFILES_ESTADIO <- FALSE # Perfiles individuales para cada estadio
-GENERAR_PERFILES_STAFF <- FALSE # Perfiles individuales para cada miembro de staff
+GENERAR_PERFILES_EQUIPO <- TRUE # Perfiles individuales para cada equipo
+GENERAR_PERFILES_ARBITRO <- TRUE # Perfiles individuales para cada \u00e1rbitro
+GENERAR_PERFILES_ESTADIO <- TRUE # Perfiles individuales para cada estadio
+GENERAR_PERFILES_STAFF <- TRUE # Perfiles individuales para cada miembro de staff
 
 # ============================================================================ #

@@ -1,16 +1,22 @@
 # Ignore all files by default
 *
 
-# Allow directories so Git can traverse them
-!*/
-!/.gitignore
+# Allow workflows
+!/.github/
+!/.github/workflows/
+!/.github/workflows/*.yml
 
 # Include specific files
 !*.R
 !*.txt
 !*.xlsx
+!*.rds
 !README.md
 !Logos/**
+
+# Allow Firebase
+!/firebase.json
+!/.firebaserc
 
 # Explicitly ignore directories we don't want to track
 /docs/
@@ -22,7 +28,6 @@
 .positai/
 
 # Explicitly ignore cache and system files
-*.rds
 *.RData
 *.Rdata
 .DS_Store

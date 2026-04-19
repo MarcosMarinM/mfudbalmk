@@ -219,9 +219,9 @@ if (file.exists(ruta_conversiones)) {
     
     # CLAVE: Crear un dataframe de mapeo que es case-insensitive y permite duplicados en la entrada.
     mapa_conversiones_df <- conversiones_df %>%
-      # Convertir la columna 'original' a min\u00fasculas para el cruce.
+      # Convertir la columna 'original' a min\u00fasculas y normalizar espacios para el cruce.
       mutate(
-        original_lower = tolower(trimws(original)),
+        original_lower = normalize_for_join(original),
         corregido = trimws(corregido)
       ) %>%
       # Seleccionar solo las columnas necesarias.

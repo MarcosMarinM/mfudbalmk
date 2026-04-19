@@ -162,6 +162,20 @@ get_national_team_iso <- function(team_name_mk) {
   return(NA_character_) # 8.1.15. Not a national team or ISO code not found.
 }
 
+
+#' @title Standard normalization for string matching in lookups.
+#' @description Replaces NBSP with normal spaces, collapses internal whitespace, and lowercases the string.
+#' @param x The string to normalize.
+#' @return A normalized string.
+normalize_for_join <- function(x) {
+  if (is.null(x) || length(x) == 0) return(character(0))
+  x_chr <- as.character(x)
+  # Replace NBSP with a standard space
+  x_clean <- stringr::str_replace_all(x_chr, "\u00A0", " ")
+  # Collapse internal whitespace and lowercase
+  tolower(stringr::str_squish(x_clean))
+}
+
 ### 8.2. Data Manipulation Functions
 
 #' @title Apply a conversion map (dictionary) to dataframe columns or vectors flexibly.
@@ -182,13 +196,7 @@ aplicar_conversiones <- function(data_input, columnas = NULL, mapa_df) {
     return(data_input)
   }
 
-  # Helper to normalize keys consistently with mapa_conversiones_df
-  normalize_for_join <- function(x) {
-    # Ensure character, replace NBSP, collapse internal whitespace, lowercase
-    x_chr <- as.character(x)
-    x_clean <- str_replace_all(x_chr, "\u00A0", " ")
-    tolower(str_squish(x_clean))
-  }
+  # (normalize_for_join is now a global utility function in this file)
 
   # --- LOGIC BRANCHING ---
   if (is.data.frame(data_input)) {
@@ -1351,6 +1359,7 @@ generar_cronologia_df <- function(id_p, resumen_partido, entidades_lang_df, juga
 #' @param path_to_root Relative path to the teams folder (e.g., "..").
 #' @return An htmltools `<a>` tag if it's a club, or a `<span>` if it's a national team.
 crear_enlace_equipo_condicional <- function(nombre_equipo_mk, nombre_equipo_lang, path_to_root = "..") {
+
   # 8.4.17. Use the existing function to determine if it's a national team.
   es_seleccion_nacional <- !is.na(get_national_team_iso(nombre_equipo_mk))
 
@@ -1870,7 +1879,7 @@ nombres_archivos_traducidos <- list(
   sanciones = "disciplinska",
   archive = "arhiva",
   about = "za-proektot",
-  players = "fudbalerki",
+  players = "fudbaleri",
   teams = "klubovi"
 )
 
