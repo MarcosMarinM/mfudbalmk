@@ -60,11 +60,11 @@ th { background-color: #f2f2f2; }
 .legend { margin-top: 20px; padding: 10px; text-align: left; font-size: 0.9em; }
 .legend-item { display: inline-flex; align-items: center; margin-right: 20px; margin-bottom: 5px; }
 .legend-color-box { width: 15px; height: 15px; border: 1px solid #ccc; margin-right: 8px; flex-shrink: 0; }
-.team-logo { height: 24px; width: 24px; object-fit: contain; }
+.team-logo { max-height: 24px; max-width: 24px; height: auto; width: auto; object-fit: contain; }
 .team-logo.national-team-flag { border-radius: 50%; border: 1px solid #ccc; }
 .team-cell { display: flex; align-items: center; }
 .team-cell .team-logo { margin-right: 12px; }
-.partido-link .team-logo { height: 28px; width: 28px; }
+.partido-link .team-logo { max-height: 28px; max-width: 28px; height: auto; width: auto; }
 .partido-link .equipo-local .team-logo { margin-right: 10px; }
 .partido-link .equipo-visitante .team-logo { margin-left: 10px; }
 .alineacion-header { text-align: center; margin-bottom: 20px; }
@@ -202,7 +202,7 @@ th { background-color: #f2f2f2; }
 .stats-table-season th, .matches-table-season th { font-size: 0.9em; padding: 8px; }
 .stats-table-season td, .matches-table-season td { font-size: 0.9em; padding: 8px; }
 .team-cell-with-logo { display: flex; align-items: center; gap: 10px; }
-.team-cell-with-logo img { height: 20px; width: 20px; flex-shrink: 0; }
+.team-cell-with-logo img { max-height: 20px; max-width: 20px; height: auto; width: auto; flex-shrink: 0; }
 .team-cell-with-logo a { font-weight: normal; }
 .team-logo-small.national-team-flag { border-radius: 50%; border: 1px solid #ccc; }
 @media (max-width: 768px) {
@@ -236,7 +236,7 @@ th { background-color: #f2f2f2; }
 .team-home, .team-away { display: flex; align-items: center; gap: 8px; flex: 1; font-weight: 500; }
 .team-home { justify-content: flex-end; text-align: right; }
 .team-away { justify-content: flex-start; text-align: left; }
-.team-home .team-logo-small, .team-away .team-logo-small { height: 20px; width: 20px; }
+.team-home .team-logo-small, .team-away .team-logo-small { max-height: 20px; max-width: 20px; height: auto; width: auto; }
 .match-score { background-color: #e9ecef; font-weight: bold; padding: 5px 10px; border-radius: 4px; margin: 0 10px; white-space: nowrap; }
 .cell-goals, .cell-minutes, .cell-link { text-align: center; }
 .cell-cards { text-align: center; display: flex; gap: 4px; justify-content: center; align-items: center; }

@@ -20,7 +20,7 @@ if (hubo_cambios) {
     if (length(team_names_mk) == 0 || is.na(team_names_mk) || team_names_mk == "") {
       return(tagList(NULL))
     }
-    teams_mk_list <- str_split(team_names_mk, " / ")
+    teams_mk_list <- str_split(team_names_mk, "\\s*(?:/|;)\\s*")
     if (length(teams_mk_list) == 0) {
       return(tagList(NULL))
     }
@@ -41,7 +41,7 @@ if (hubo_cambios) {
           tags$a(href = file.path(path_to_root, nombres_carpetas_relativos$timovi, paste0(generar_id_seguro(team_name_mk), ".html")), entity_name_spans(team_name_mk))
         )
         if (i < length(teams_mk)) {
-          tagList(team_element, tags$span(style = "margin: 0 5px;", "/"))
+          tagList(team_element, tags$br())
         } else {
           team_element
         }
@@ -62,7 +62,7 @@ if (hubo_cambios) {
         team_name_mk <- teams_mk[i]
         team_element <- entity_name_spans(team_name_mk)
         if (i < length(teams_mk)) {
-          tagList(team_element, tags$span(style = "margin: 0 5px;", "/"))
+          tagList(team_element, tags$br())
         } else {
           team_element
         }
