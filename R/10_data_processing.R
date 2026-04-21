@@ -780,6 +780,34 @@ es_categoria_menor <- function(cat) {
   }, USE.NAMES = FALSE)
 }
 
+# Excepcion de mercado: durante ventanas de fichajes permitimos transiciones
+# cortas entre equipos sin forzar homonimia, salvo conflicto biologico.
+es_ventana_fichajes <- function(fecha_a, fecha_b) {
+  if (any(is.na(c(fecha_a, fecha_b)))) {
+    return(FALSE)
+  }
+
+  mes_a <- as.integer(format(fecha_a, "%m"))
+  mes_b <- as.integer(format(fecha_b, "%m"))
+
+  en_verano <- mes_a %in% c(6, 7, 8, 9) || mes_b %in% c(6, 7, 8, 9)
+  en_invierno <- mes_a %in% c(11, 12, 1, 2) && mes_b %in% c(11, 12, 1, 2)
+  cruza_invierno <- (mes_a %in% c(11, 12) && mes_b %in% c(1, 2)) ||
+    (mes_b %in% c(11, 12) && mes_a %in% c(1, 2))
+
+  en_verano || en_invierno || cruza_invierno
+}
+
+calcular_gap_intervalos <- function(min_a, max_a, min_b, max_b) {
+  if (any(is.na(c(min_a, max_a, min_b, max_b)))) {
+    return(Inf)
+  }
+
+  inicio_tardio <- max(min_a, min_b)
+  fin_temprano <- min(max_a, max_b)
+  as.numeric(inicio_tardio - fin_temprano)
+}
+
 # Paso 2: Resumir intervalos de fechas y compatibilidad biol\u00f3gica por nombre + equipo
 id_assignments <- apariciones_con_fechas %>%
   filter(!is.na(fecha_date), !is.na(equipo)) %>%
@@ -796,53 +824,69 @@ id_assignments <- apariciones_con_fechas %>%
 list_res <- lapply(split(id_assignments, id_assignments$nombre), function(teams_data) {
     teams_data <- teams_data %>% arrange(min_fecha)
     n_teams <- nrow(teams_data)
-    
-    # Jugador sin hom\u00f3nimos obvios (solo en un equipo)
+    umbral_dias_conflicto <- 15
+
+    # Jugador sin homonimos obvios (solo en un equipo)
     if (n_teams == 1) {
       teams_data$cluster <- 1
       teams_data$is_homonym <- FALSE
       return(teams_data)
     }
-    
+
     clusters <- list()
     for (i in seq_len(n_teams)) {
       t_row <- teams_data[i, ]
       assigned <- FALSE
-      
+
       for (c_idx in seq_along(clusters)) {
         c_items <- clusters[[c_idx]]
-        
-        # Comprobar solapamiento (Misma persona no puede jugar simult\u00e1neamente)
-        # Usamos 15 d\u00edas: Si un intervalo se asoma al otro menos de 15 d\u00edas, asumimos homonimia.
-        overlap <- FALSE
-        for (ct in c_items) {
-          if (t_row$min_fecha <= (ct$max_fecha + 15) && ct$min_fecha <= (t_row$max_fecha + 15)) {
-            overlap <- TRUE
-            break
-          }
-        }
-        
-        # Comprobar conflicto biol\u00f3gico (S\u00e9nior/Jugador Infantil)
+
+        # Comprobar conflicto biologico (Senior/Jugador Infantil)
         c_has_mayor <- any(sapply(c_items, function(x) isTRUE(x$has_mayor)), na.rm = TRUE) || isTRUE(t_row$has_mayor)
         c_has_menor <- any(sapply(c_items, function(x) isTRUE(x$has_menor)), na.rm = TRUE) || isTRUE(t_row$has_menor)
         bio_conflict <- c_has_mayor && c_has_menor
-        
-        if (!overlap && !bio_conflict) {
+
+        # Por defecto, un gap <= 15 dias se interpreta como conflicto temporal.
+        # Excepcion: en mercado (verano/invierno) se permite gap corto positivo
+        # para no separar fichajes reales, salvo conflicto biologico.
+        temporal_conflict <- FALSE
+        for (ct in c_items) {
+          gap_dias <- calcular_gap_intervalos(
+            t_row$min_fecha,
+            t_row$max_fecha,
+            ct$min_fecha,
+            ct$max_fecha
+          )
+
+          conflicto_temporal_ct <- is.finite(gap_dias) && gap_dias <= umbral_dias_conflicto
+          es_gap_positivo <- is.finite(gap_dias) && gap_dias > 0
+
+          inicio_tardio <- max(t_row$min_fecha, ct$min_fecha)
+          fin_temprano <- min(t_row$max_fecha, ct$max_fecha)
+          excepcion_mercado_ct <- es_gap_positivo && es_ventana_fichajes(fin_temprano, inicio_tardio)
+
+          if (conflicto_temporal_ct && !(excepcion_mercado_ct && !bio_conflict)) {
+            temporal_conflict <- TRUE
+            break
+          }
+        }
+
+        if (!temporal_conflict && !bio_conflict) {
           clusters[[c_idx]] <- append(clusters[[c_idx]], list(t_row))
           assigned <- TRUE
           break
         }
       }
-      
+
       if (!assigned) {
         clusters <- append(clusters, list(list(t_row)))
       }
     }
-    
+
     res <- bind_rows(lapply(seq_along(clusters), function(c_idx) {
       bind_rows(clusters[[c_idx]]) %>% mutate(cluster = c_idx)
     }))
-    
+
     res$is_homonym <- length(clusters) > 1
     return(res)
 })
