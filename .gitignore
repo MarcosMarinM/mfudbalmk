@@ -13,6 +13,7 @@
 !*.rds
 !README.md
 !Logos/**
+!favicon.png
 
 # Allow Firebase
 !/firebase.json
