@@ -2248,9 +2248,26 @@ if (hubo_cambios) {
               partidos_jugadora_details <- apariciones_df %>%
                 filter(id == id_j) %>%
                 left_join(
-                  partidos_df %>% select(id_partido, local, visitante, goles_local, goles_visitante, fecha, es_partido_seleccion, categoria, es_cancelado),
+                  partidos_df %>% select(
+                    id_partido,
+                    local,
+                    visitante,
+                    goles_local,
+                    goles_visitante,
+                    fecha,
+                    es_partido_seleccion,
+                    categoria,
+                    es_cancelado,
+                    competicion_nombre_match = competicion_nombre,
+                    competicion_temporada_match = competicion_temporada
+                  ),
                   by = "id_partido"
-                ) %>% # <-- ESTA ES LA L\u00cdNEA CORREGIDA
+                ) %>%
+                mutate(
+                  competicion_nombre = coalesce(competicion_nombre_match, competicion_nombre),
+                  competicion_temporada = coalesce(competicion_temporada_match, competicion_temporada)
+                ) %>%
+                select(-competicion_nombre_match, -competicion_temporada_match) %>%
                 left_join(entidades_all_lang_df, by = c("local" = "original_name")) %>%
                 left_join(entidades_all_lang_df, by = c("visitante" = "original_name"))
               national_team_data_player <- national_team_career_by_category_df %>% filter(id == id_j)
@@ -2364,60 +2381,65 @@ if (hubo_cambios) {
 
                     competitions_in_season <- matches_data_season %>%
                       distinct(competicion_id, .keep_all = TRUE) %>%
+                      filter(!is.na(competicion_id), competicion_id != "") %>%
                       select(competicion_id, competicion_nombre_lang = !!sym(comp_name_col))
-                    matches_tab_content <- tagList(
-                      tags$div(class = "sub-tab-nav", map(1:nrow(competitions_in_season), function(c_idx) {
-                        comp <- competitions_in_season[c_idx, ]
-                        comp_row <- matches_data_season %>% filter(competicion_id == comp$competicion_id) %>% slice(1)
-                        tags$button(class = if (c_idx == 1) "sub-tab-button active" else "sub-tab-button", `data-season-id` = season_id_safe, `data-subtab-target` = comp$competicion_id, comp_name_spans(comp_row))
-                      })),
-                      map(1:nrow(competitions_in_season), function(c_idx) {
-                        comp <- competitions_in_season[c_idx, ]
-                        matches_in_comp <- matches_data_season %>%
-                          filter(competicion_id == comp$competicion_id) %>%
-                          mutate(fecha_date = as.Date(fecha, format = "%d.%m.%Y")) %>%
-                          arrange(desc(fecha_date))
-                        tags$div(
-                          id = paste0("matches-", season_id_safe, "-", comp$competicion_id), class = if (c_idx == 1) "sub-tab-panel active" else "sub-tab-panel",
+                    matches_tab_content <- if (nrow(competitions_in_season) > 0) {
+                      tagList(
+                        tags$div(class = "sub-tab-nav", map(seq_len(nrow(competitions_in_season)), function(c_idx) {
+                          comp <- competitions_in_season[c_idx, ]
+                          comp_row <- matches_data_season %>% filter(competicion_id == comp$competicion_id) %>% slice(1)
+                          tags$button(class = if (c_idx == 1) "sub-tab-button active" else "sub-tab-button", `data-season-id` = season_id_safe, `data-subtab-target` = comp$competicion_id, comp_name_spans(comp_row))
+                        })),
+                        map(seq_len(nrow(competitions_in_season)), function(c_idx) {
+                          comp <- competitions_in_season[c_idx, ]
+                          matches_in_comp <- matches_data_season %>%
+                            filter(competicion_id == comp$competicion_id) %>%
+                            mutate(fecha_date = as.Date(fecha, format = "%d.%m.%Y")) %>%
+                            arrange(desc(fecha_date))
                           tags$div(
-                            class = "match-list-container",
-                            tags$div(class = "match-list-header", tags$div(t_html("team_header_date")), tags$div(t_html("match_header_match")), tags$div(t_html("player_goals")), tags$div(t_html("match_header_card")), tags$div(t_html("player_mins"))),
-                            map(seq_len(nrow(matches_in_comp)), function(p_idx) {
-                              partido_row <- matches_in_comp[p_idx, ]
-                              partido_id_val <- if ("id_partido" %in% names(partido_row)) partido_row$id_partido else NA
-                              if (length(partido_id_val) != 1) partido_id_val <- NA
+                            id = paste0("matches-", season_id_safe, "-", comp$competicion_id), class = if (c_idx == 1) "sub-tab-panel active" else "sub-tab-panel",
+                            tags$div(
+                              class = "match-list-container",
+                              tags$div(class = "match-list-header", tags$div(t_html("team_header_date")), tags$div(t_html("match_header_match")), tags$div(t_html("player_goals")), tags$div(t_html("match_header_card")), tags$div(t_html("player_mins"))),
+                              map(seq_len(nrow(matches_in_comp)), function(p_idx) {
+                                partido_row <- matches_in_comp[p_idx, ]
+                                partido_id_val <- if ("id_partido" %in% names(partido_row)) partido_row$id_partido else NA
+                                if (length(partido_id_val) != 1) partido_id_val <- NA
 
-                              goles_partido_jugadora <- if (!is.na(partido_id_val) && !is.null(partido_id_val)) {
-                                goles_df_unificado %>% filter(id_partido == partido_id_val, id == id_j)
-                              } else {
-                                tibble()
-                              }
+                                goles_partido_jugadora <- if (!is.na(partido_id_val) && !is.null(partido_id_val)) {
+                                  goles_df_unificado %>% filter(id_partido == partido_id_val, id == id_j)
+                                } else {
+                                  tibble()
+                                }
 
-                              tarjetas_partido_jugadora <- if (!is.na(partido_id_val) && !is.null(partido_id_val)) {
-                                tarjetas_df_unificado %>% filter(id_partido == partido_id_val, id == id_j)
-                              } else {
-                                tibble()
-                              }
+                                tarjetas_partido_jugadora <- if (!is.na(partido_id_val) && !is.null(partido_id_val)) {
+                                  tarjetas_df_unificado %>% filter(id_partido == partido_id_val, id == id_j)
+                                } else {
+                                  tibble()
+                                }
 
-                              target_href <- if (!is.na(partido_id_val) && nzchar(as.character(partido_id_val))) {
-                                file.path("..", nombres_carpetas_relativos$partidos, paste0(partido_id_val, ".html"))
-                              } else {
-                                "#"
-                              }
+                                target_href <- if (!is.na(partido_id_val) && nzchar(as.character(partido_id_val))) {
+                                  file.path("..", nombres_carpetas_relativos$partidos, paste0(partido_id_val, ".html"))
+                                } else {
+                                  "#"
+                                }
 
-                              tags$div(
-                                class = "match-list-row clickable-row", `data-href` = target_href,
-                                tags$div(class = "cell-date", partido_row$fecha),
-                                tags$div(class = "cell-match", tags$span(class = "team-home", entity_name_spans(partido_row$local), generar_logo_html(partido_row$local)), tags$span(class = "match-score", tags$span(paste(partido_row$goles_local, ":", partido_row$goles_visitante))), tags$span(class = "team-away", generar_logo_html(partido_row$visitante), entity_name_spans(partido_row$visitante))),
-                                tags$div(class = "cell-goals", if (nrow(goles_partido_jugadora) > 0) nrow(goles_partido_jugadora) else "0"),
-                                tags$div(class = "cell-cards", if (nrow(tarjetas_partido_jugadora) > 0) tagList(if ("Amarilla" %in% tarjetas_partido_jugadora$tipo) tags$span(class = "card-icon-table yellow"), if ("Roja" %in% tarjetas_partido_jugadora$tipo) tags$span(class = "card-icon-table red"))),
-                                tags$div(class = "cell-minutes", if (is.na(partido_row$minutos_jugados)) "0" else partido_row$minutos_jugados)
-                              )
-                            })
+                                tags$div(
+                                  class = "match-list-row clickable-row", `data-href` = target_href,
+                                  tags$div(class = "cell-date", partido_row$fecha),
+                                  tags$div(class = "cell-match", tags$span(class = "team-home", entity_name_spans(partido_row$local), generar_logo_html(partido_row$local)), tags$span(class = "match-score", tags$span(paste(partido_row$goles_local, ":", partido_row$goles_visitante))), tags$span(class = "team-away", generar_logo_html(partido_row$visitante), entity_name_spans(partido_row$visitante))),
+                                  tags$div(class = "cell-goals", if (nrow(goles_partido_jugadora) > 0) nrow(goles_partido_jugadora) else "0"),
+                                  tags$div(class = "cell-cards", if (nrow(tarjetas_partido_jugadora) > 0) tagList(if ("Amarilla" %in% tarjetas_partido_jugadora$tipo) tags$span(class = "card-icon-table yellow"), if ("Roja" %in% tarjetas_partido_jugadora$tipo) tags$span(class = "card-icon-table red"))),
+                                  tags$div(class = "cell-minutes", if (is.na(partido_row$minutos_jugados)) "0" else partido_row$minutos_jugados)
+                                )
+                              })
+                            )
                           )
-                        )
-                      })
-                    )
+                        })
+                      )
+                    } else {
+                      tags$p(style = "text-align:center;", t_html("player_no_matches"))
+                    }
                   }
                   tags$div(
                     class = "season-accordion",
@@ -2928,6 +2950,9 @@ if (hubo_cambios) {
                         map(1:nrow(historial), function(p_idx) {
                           partido <- historial[p_idx, ]
                           nombre_comp <- partido[[comp_name_col]]
+                          if (is.null(nombre_comp) || is.na(nombre_comp) || trimws(as.character(nombre_comp)) == "" || tolower(trimws(as.character(nombre_comp))) == "na") {
+                            nombre_comp <- partido$competicion_nombre %||% ""
+                          }
                           is_cancelled <- isTRUE(partido$es_cancelado)
                           resultado_txt <- if (is_cancelled) t_html("match_cancelled") else tags$span(paste(partido$goles_local, "-", partido$goles_visitante))
                           match_href <- if (is_cancelled) "javascript:void(0)" else file.path(path_rel_partidos, paste0(partido$id_partido, ".html"))

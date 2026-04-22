@@ -518,9 +518,9 @@ national_team_career_by_category_df <- apariciones_df %>%
   mutate(across(c(CalledUp, Played, Starter, Minutes, Goals, Yellows, Reds), ~replace_na(., 0)))
 
 ### 11.6. Calculate Career Summaries per Player
-career_summary_jugadoras_df <- apariciones_df %>%
+career_summary_jugadoras_df <- apariciones_comp_context_df %>%
   filter(!is.na(id)) %>%
-  group_by(id, competicion_temporada, competicion_nombre, equipo) %>%
+  group_by(id, competicion_temporada = competicion_temporada_ctx, competicion_nombre = competicion_nombre_ctx, equipo) %>%
   summarise(
     CalledUp = n_distinct(id_partido), Played = sum(minutos_jugados > 0, na.rm=TRUE),
     Starter = sum(tipo=="Titular", na.rm=TRUE), Minutes = sum(minutos_jugados, na.rm=TRUE),
@@ -529,7 +529,7 @@ career_summary_jugadoras_df <- apariciones_df %>%
   full_join(
     {
       # CORRECCI\u00d3N: Renombrar 'equipo' a 'equipo_canonico' AL CREAR el mapa.
-      mapa_partido_jugadora_a_equipo <- apariciones_df %>% 
+      mapa_partido_jugadora_a_equipo <- apariciones_comp_context_df %>% 
         distinct(id, id_partido, equipo_canonico = equipo)
       
       goles_df_unificado %>% 
@@ -545,7 +545,7 @@ career_summary_jugadoras_df <- apariciones_df %>%
   full_join(
     {
       # CORRECCI\u00d3N: Aplicar el mismo renombrado aqu\u00ed.
-      mapa_partido_jugadora_a_equipo <- apariciones_df %>% 
+      mapa_partido_jugadora_a_equipo <- apariciones_comp_context_df %>% 
         distinct(id, id_partido, equipo_canonico = equipo)
       
       tarjetas_df_unificado %>% 
@@ -579,8 +579,8 @@ stats_equipos_por_temporada_df <- partidos_df %>%
   arrange(equipo, desc(last_match_date))
 
 ### 11.7. Calculate Team Profile Summaries (VERSI\u00d3N ALINEADA CON SCRIPT DE PRUEBAS)
-stats_jugadoras_por_equipo_temporada_df <- apariciones_df %>%
-  group_by(id, equipo, competicion_nombre, competicion_temporada) %>%
+stats_jugadoras_por_equipo_temporada_df <- apariciones_comp_context_df %>%
+  group_by(id, equipo, competicion_nombre = competicion_nombre_ctx, competicion_temporada = competicion_temporada_ctx) %>%
   summarise(
     CalledUp = n_distinct(id_partido),
     Played = sum(minutos_jugados > 0, na.rm = TRUE),

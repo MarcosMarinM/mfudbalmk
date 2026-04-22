@@ -1138,7 +1138,15 @@ function initializeTeamProfilePage() {
   const pageData = JSON.parse(dataEl.textContent);
   const translationsByLang = pageData.translations || {};
   const getTeamTranslations = () => translationsByLang[currentLang] || translationsByLang.mk || translationsByLang.en || {};
-  const getCompetitionId = (item) => item.competicion_id || item['competicion_id.x'] || item['competicion_id.y'] || null;
+  const getCompetitionId = (item) => {
+    const explicitId = item.competicion_id || item['competicion_id.x'] || item['competicion_id.y'];
+    if (explicitId) return String(explicitId);
+    const compName = (item.competicion_nombre || '').trim();
+    const season = (item.competicion_temporada || '').trim();
+    if (compName && season) return `${compName}__${season}`;
+    if (compName) return compName;
+    return null;
+  };
   let rosterSortColumn = 'dorsal_principal';
   let rosterSortDirection = 'asc';
   const rosterSeason = document.getElementById('roster-season-filter');

@@ -1290,8 +1290,11 @@ if (exists("partidos_df") && nrow(partidos_df) > 0) {
         }
       }
       if (!is.na(found_group)) {
-        partidos_df$competicion_nombre[i] <- paste0(partidos_df$competicion_nombre[i], " (", found_group, ")")
-        cambios <- cambios + 1L
+        ya_tiene_grupo <- stringr::str_detect(partidos_df$competicion_nombre[i], "\\([^)]*\\)\\s*$")
+        if (!ya_tiene_grupo) {
+          partidos_df$competicion_nombre[i] <- paste0(partidos_df$competicion_nombre[i], " (", found_group, ")")
+          cambios <- cambios + 1L
+        }
       }
     }
     message(paste("Competition disambiguation applied to", cambios, "matches."))
@@ -1320,6 +1323,29 @@ if (exists("partidos_df") && nrow(partidos_df) > 0) {
       )
     competiciones_combinadas_df <- competiciones_base_df %>%
       mutate(orden_primario = case_when(sort_year == max_real_season_numeric ~ 1, TRUE ~ 2))
+  }
+
+  # Keep all downstream datasets aligned with the final competition name used in matches.
+  # This avoids mismatches in player/team/stadium profiles when disambiguation appends groups.
+  sincronizar_contexto_competicion <- function(df) {
+    if (is.null(df) || nrow(df) == 0 || !"id_partido" %in% names(df)) {
+      return(df)
+    }
+
+    df %>%
+      select(-any_of(c("competicion_nombre", "competicion_temporada"))) %>%
+      left_join(
+        partidos_df %>% select(id_partido, competicion_nombre, competicion_temporada),
+        by = "id_partido"
+      )
+  }
+
+  if (exists("apariciones_df") && !is.null(apariciones_df) && nrow(apariciones_df) > 0) {
+    apariciones_df <- sincronizar_contexto_competicion(apariciones_df)
+  }
+
+  if (exists("estadios_df") && !is.null(estadios_df) && nrow(estadios_df) > 0) {
+    estadios_df <- sincronizar_contexto_competicion(estadios_df)
   }
 
   if (!is.null(mapa_nombres_competiciones_long)) {
