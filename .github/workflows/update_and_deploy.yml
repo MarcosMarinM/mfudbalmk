@@ -1,4 +1,4 @@
-name: Scrape, Build and Deploy
+name: Scrape, build and deploy
 
 on:
   schedule:
@@ -16,6 +16,10 @@ on:
 
   workflow_dispatch: # Permite ejecución manual desde la web de GitHub
 
+concurrency:
+  group: scraper-unico
+  cancel-in-progress: false
+  
 permissions:
   contents: write
 
@@ -29,48 +33,53 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Configurar R
+      - name: Configure R
         uses: r-lib/actions/setup-r@v2
         with:
           use-public-rspm: true
 
-      - name: Instalar dependencias del sistema (Ubuntu)
+      - name: Install system dependencies (Ubuntu)
         run: |
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev libssl-dev libxml2-dev libfontconfig1-dev libharfbuzz-dev libfribidi-dev
 
-      - name: Caché de paquetes de R
+      - name: R packages cache
         uses: actions/cache@v4
         with:
           path: ${{ env.R_LIBS_USER }}
           key: ${{ runner.os }}-r-pacman-${{ hashFiles('scrape.R', 'buildhtml.R') }}
           restore-keys: ${{ runner.os }}-r-pacman-
 
-      # --- PERSISTENCIA DE LA CARPETA DOCS (Incremental) ---
-      - name: Recuperar/Guardar carpeta docs
-        uses: actions/cache@v4
-        with:
-          path: docs/
-          # El run_id asegura que siempre se intente guardar una versión nueva al terminar
-          key: docs-build-${{ github.run_id }}
-          # El restore-keys busca la versión más reciente disponible que empiece por ese prefijo
-          restore-keys: |
-            docs-build-
-
-      - name: Ejecutar Scraper
+      - name: Scrape
         run: Rscript scrape.R
 
-      - name: Commit y Push de archivos de tracking (.rds)
+      - name: Commit and push .rds
+        if: always() # Se ejecuta SIEMPRE para no perder el auto-guardado si R falla a medias
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add *.rds
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update by GitHub Actions" && git push)
+          
+          # Añadir todos los archivos .rds explícitamente (el pathspec de Git busca en todas las carpetas)
+          git add \*.rds
+          
+          # Comprobar si hay cambios reales en los archivos .rds
+          if ! git diff --staged --quiet; then
+            echo "Nuevos datos detectados. Preparando commit..."
+            git commit -m "Auto-update: Nuevos datos scrapeados"
+            
+            # EL ANTÍDOTO: Traer cualquier cambio externo (colisiones, re-runs, edits)
+            git pull --rebase origin main
+            
+            # Subir todo con seguridad
+            git push
+          else
+            echo "No hubo cambios en los datos durante esta sesión."
+          fi
 
-      - name: Generar HTML estático
+      - name: Build HTML
         run: Rscript buildhtml.R
 
-      - name: Desplegar a Firebase Hosting
+      - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
