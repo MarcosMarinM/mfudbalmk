@@ -782,21 +782,21 @@ calcular_minuto_sort <- function(minuto) {
 
 #' @title Get the relative file path to a club team's logo.
 #' @description Always returns a local path (no national team flag logic).
-#'   Falls back to "NOLOGO.png" if not found.
+#'   Falls back to "NOLOGO.webp" if not found.
 #' @param nombre_equipo_mk Team name in Macedonian (original_name).
 #' @param path_to_root Relative path from the calling page to the docs/ root.
 #' @return A string with the relative path to the logo file.
 get_club_logo_path <- function(nombre_equipo_mk, path_to_root = "..") {
-  nombre_archivo <- paste0(generar_id_seguro(nombre_equipo_mk), ".png")
+  nombre_archivo <- paste0(generar_id_seguro(nombre_equipo_mk), ".webp")
   if (!file.exists(file.path(RUTA_LOGOS_DESTINO, nombre_archivo))) {
-    nombre_archivo <- "NOLOGO.png"
+    nombre_archivo <- "NOLOGO.webp"
   }
   file.path(path_to_root, nombres_carpetas_relativos$assets, nombres_carpetas_relativos$logos, nombre_archivo)
 }
 
 #' @title Get an HTML img tag for a team logo.
 #' @description For national teams, uses flag SVG from hatscripts.github.io.
-#'   For clubs, uses local logo file. Falls back to "NOLOGO.png".
+#'   For clubs, uses local logo file. Falls back to "NOLOGO.webp".
 #' @param nombre_equipo_mk Team name in Macedonian (original_name).
 #' @param path_to_root Relative path from the calling page to the docs/ root.
 #' @param css_class CSS class(es) for the img tag. "national-team-flag" is
@@ -1917,14 +1917,14 @@ copiar_logos_compartidos <- function() {
     return(invisible(NULL))
   }
 
-  archivos_logo_fuente <- list.files(ruta_logos_fuente, pattern = "\\.png$", full.names = TRUE)
+  archivos_logo_fuente <- list.files(ruta_logos_fuente, pattern = "\\.webp$", full.names = TRUE)
   if (length(archivos_logo_fuente) == 0) {
-    warning("The logos folder exists but contains no .png files.")
+    warning("The logos folder exists but contains no .webp files.")
     return(invisible(NULL))
   }
 
   # Remove stale exports so slug changes are reflected immediately.
-  archivos_logo_destino <- list.files(RUTA_LOGOS_DESTINO, pattern = "\\.png$", full.names = TRUE)
+  archivos_logo_destino <- list.files(RUTA_LOGOS_DESTINO, pattern = "\\.webp$", full.names = TRUE)
   if (length(archivos_logo_destino) > 0) {
     unlink(archivos_logo_destino, force = TRUE)
   }
@@ -1932,11 +1932,11 @@ copiar_logos_compartidos <- function() {
   walk(archivos_logo_fuente, function(ruta_completa_fuente) {
     nombre_archivo_original <- basename(ruta_completa_fuente)
 
-    nombre_archivo_destino <- if (nombre_archivo_original == "NOLOGO.png") {
-      "NOLOGO.png"
+    nombre_archivo_destino <- if (tolower(nombre_archivo_original) == "nologo.webp") {
+      "NOLOGO.webp"
     } else {
       nombre_base_sin_ext <- tools::file_path_sans_ext(nombre_archivo_original)
-      paste0(generar_id_seguro(nombre_base_sin_ext), ".png")
+      paste0(generar_id_seguro(nombre_base_sin_ext), ".webp")
     }
 
     ruta_completa_destino <- file.path(RUTA_LOGOS_DESTINO, nombre_archivo_destino)
@@ -1944,8 +1944,8 @@ copiar_logos_compartidos <- function() {
   })
 
   message(paste(length(archivos_logo_fuente), " logos copied to the shared assets folder: ", RUTA_LOGOS_DESTINO))
-  if (!file.exists(file.path(ruta_logos_fuente, "NOLOGO.png"))) {
-    warning("WARNING: The placeholder logo 'NOLOGO.png' was not found.")
+  if (!file.exists(file.path(ruta_logos_fuente, "NOLOGO.webp"))) {
+    warning("WARNING: The placeholder logo 'NOLOGO.webp' was not found.")
   }
 
   invisible(NULL)
