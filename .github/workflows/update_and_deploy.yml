@@ -65,7 +65,7 @@ jobs:
           # Comprobar si hay cambios reales en los archivos .rds
           if ! git diff --staged --quiet; then
             echo "Nuevos datos detectados. Preparando commit..."
-            git commit -m "Auto-update: Nuevos datos scrapeados"
+            git commit -m "Auto-update: New scraped data"
             
             # EL ANTÍDOTO: Traer cualquier cambio externo (colisiones, re-runs, edits)
             git pull --rebase origin main
