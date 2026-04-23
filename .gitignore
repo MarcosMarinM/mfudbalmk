@@ -1,25 +1,24 @@
-# Ignore all files by default
+# 1. Ignore all files
 *
 
-# Allow workflows
-!/.github/
-!/.github/workflows/
-!/.github/workflows/*.yml
+# 2. Allow folders (not their contents)
+!*/
 
-# Include specific files
+# 3. File exceptions
 !*.R
 !*.txt
 !*.xlsx
 !*.rds
 !README.md
-!Logos/**
 !favicon.png
-
-# Allow Firebase
 !/firebase.json
 !/.firebaserc
 
-# Explicitly ignore directories we don't want to track
+# 4. Folders and their contents exceptions
+!/.github/
+!/Logos/**
+
+# 5. Blacklist (ignore under all circumstances)
 /docs/
 /Dropbox/
 /Actas/
@@ -27,8 +26,6 @@
 /scratch/
 .Rproj.user/
 .positai/
-
-# Explicitly ignore cache and system files
 *.RData
 *.Rdata
 .DS_Store
