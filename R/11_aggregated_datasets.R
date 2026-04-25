@@ -81,7 +81,8 @@ stats_clasificacion_por_comp_df <- competiciones_unicas_df %>%
       filter(
         competicion_nombre == grupo_actual$competicion_nombre, 
         competicion_temporada == grupo_actual$competicion_temporada,
-        !is.na(id_partido)
+        !is.na(id_partido),
+        !isTRUE(es_cancelado)  # Cancelled matches = 0 points for both teams
       )
     
     # --- LA CORRECCI\u00d3N EST\u00c1 AQU\u00cd ---

@@ -380,9 +380,11 @@ if (hubo_cambios) {
     }
 
     # Canonical match subset used across legacy generation blocks.
+    # NOTE: Do NOT filter out cancelled/official-result matches here.
+    # They need to appear in competition hubs and team schedules.
     valid_partidos_df <- partidos_df %>%
       mutate(es_cancelado = if ("es_cancelado" %in% names(.)) coalesce(es_cancelado, FALSE) else FALSE) %>%
-      filter(!is.na(id_partido), !es_cancelado)
+      filter(!is.na(id_partido))
 
     lista_componentes_html <- map(competiciones_en_portada_mk, function(nombre_comp_mk) {
       comp_info <- competiciones_unicas_df %>%
@@ -1091,14 +1093,15 @@ if (hubo_cambios) {
               visitante_name <- entidades_df_lang$current_lang_name[match(partido$visitante, entidades_df_lang$original_name)]
 
               is_cancelled <- isTRUE(partido$es_cancelado)
-              resultado_texto <- if (is_cancelled) {
+              is_official <- isTRUE(partido$es_resultado_oficial)
+              resultado_texto <- if (is_cancelled && !is_official) {
                 t("match_cancelled")
               } else if (is_placeholder_match) {
                 partido$hora %||% " - "
               } else {
                 res_base <- paste(partido$goles_local, "-", partido$goles_visitante)
                 if (!is.na(partido$penales_local)) res_base <- sprintf("%s (%s - %s)", res_base, partido$penales_local, partido$penales_visitante)
-                if (isTRUE(partido$es_resultado_oficial)) res_base <- paste(res_base, "*")
+                if (is_official) res_base <- paste(res_base, "*")
                 res_base
               }
 
@@ -1120,7 +1123,8 @@ if (hubo_cambios) {
                 resultado = resultado_texto,
                 lugar_lang = if (length(lugar_partido_mk) > 0) as.character(entity_name_spans(lugar_partido_mk[1])) else NA_character_,
                 fecha = partido$fecha %||% NA_character_,
-                es_cancelado = isTRUE(partido$es_cancelado)
+                es_cancelado = isTRUE(partido$es_cancelado),
+                es_resultado_oficial = isTRUE(partido$es_resultado_oficial)
               )
             })
 
@@ -1414,7 +1418,8 @@ if (hubo_cambios) {
     if (GENERAR_PERFILES_PARTIDO) {
       indices_partidos <- which(
         !is.na(partidos_df$id_partido) &
-          !isTRUE(partidos_df$es_cancelado) & # Skip cancelled matches
+          !(sapply(seq_len(nrow(partidos_df)), function(i) isTRUE(partidos_df$es_cancelado[i])) &
+            !sapply(seq_len(nrow(partidos_df)), function(i) isTRUE(partidos_df$es_resultado_oficial[i]))) & # Skip cancelled-only, keep official results
           (full_rebuild_needed | partidos_df$id_partido %in% affected_match_ids)
       )
       n_partidos <- length(indices_partidos)
@@ -2819,11 +2824,19 @@ if (hubo_cambios) {
                   tags$tbody(map(1:nrow(historial_stage), function(p_idx) {
                     partido <- historial_stage[p_idx, ]
                     is_cancelled <- isTRUE(partido$es_cancelado)
-                    resultado_txt <- if (is_cancelled) t_html("match_cancelled") else paste(partido$goles_local, "-", partido$goles_visitante)
-                    match_href <- if (is_cancelled) "javascript:void(0)" else file.path(path_rel_partidos, paste0(partido$id_partido, ".html"))
+                    is_official <- isTRUE(partido$es_resultado_oficial)
+                    resultado_txt <- if (is_cancelled && !is_official) {
+                      t_html("match_cancelled")
+                    } else {
+                      res <- paste(partido$goles_local, "-", partido$goles_visitante)
+                      if (is_official) res <- paste(res, "*")
+                      res
+                    }
+                    has_link <- !is_cancelled || is_official
+                    match_href <- if (has_link) file.path(path_rel_partidos, paste0(partido$id_partido, ".html")) else "javascript:void(0)"
                     tags$tr(
-                      class = if (is_cancelled) "sp-match-row-cancelled" else "sp-clickable-row",
-                      onclick = if (is_cancelled) "" else paste0("window.location='", match_href, "'"),
+                      class = if (is_cancelled && !is_official) "sp-match-row-cancelled" else "sp-clickable-row",
+                      onclick = if (has_link) paste0("window.location='", match_href, "'") else "",
                       tags$td(partido$fecha),
                       tags$td(partido$jornada),
                       tags$td(
@@ -2915,7 +2928,7 @@ if (hubo_cambios) {
             historial_mk <- estadios_df %>%
               filter(estadio == est_mk) %>%
               left_join(
-                valid_partidos_df %>% select(id_partido, goles_local, goles_visitante, jornada, es_cancelado),
+                valid_partidos_df %>% select(id_partido, goles_local, goles_visitante, jornada, es_cancelado, es_resultado_oficial),
                 by = "id_partido"
               ) %>%
               mutate(fecha_date = as.Date(fecha, format = "%d.%m.%Y")) %>%
@@ -2954,11 +2967,19 @@ if (hubo_cambios) {
                             nombre_comp <- partido$competicion_nombre %||% ""
                           }
                           is_cancelled <- isTRUE(partido$es_cancelado)
-                          resultado_txt <- if (is_cancelled) t_html("match_cancelled") else tags$span(paste(partido$goles_local, "-", partido$goles_visitante))
-                          match_href <- if (is_cancelled) "javascript:void(0)" else file.path(path_rel_partidos, paste0(partido$id_partido, ".html"))
+                          is_official <- isTRUE(partido$es_resultado_oficial)
+                          resultado_txt <- if (is_cancelled && !is_official) {
+                            t_html("match_cancelled")
+                          } else {
+                            res_txt <- paste(partido$goles_local, "-", partido$goles_visitante)
+                            if (is_official) res_txt <- paste(res_txt, "*")
+                            tags$span(res_txt)
+                          }
+                          has_link <- !is_cancelled || is_official
+                          match_href <- if (has_link) file.path(path_rel_partidos, paste0(partido$id_partido, ".html")) else "javascript:void(0)"
                           tags$tr(
-                            class = if (is_cancelled) "sp-match-row-cancelled" else "sp-clickable-row",
-                            onclick = if (is_cancelled) "" else paste0("window.location='", match_href, "'"),
+                            class = if (is_cancelled && !is_official) "sp-match-row-cancelled" else "sp-clickable-row",
+                            onclick = if (has_link) paste0("window.location='", match_href, "'") else "",
                             tags$td(partido$fecha),
                             tags$td(nombre_comp),
                             tags$td(partido$jornada),
@@ -3062,13 +3083,21 @@ if (hubo_cambios) {
                   tags$tbody(map(1:nrow(historial_stage), function(p_idx) {
                     partido <- historial_stage[p_idx, ]
                     is_cancelled <- isTRUE(partido$es_cancelado)
-                    resultado_txt <- if (is_cancelled) t_html("match_cancelled") else paste(partido$goles_local, "-", partido$goles_visitante)
-                    match_href <- if (is_cancelled) "javascript:void(0)" else file.path(path_rel_partidos, paste0(partido$id_partido, ".html"))
+                    is_official <- isTRUE(partido$es_resultado_oficial)
+                    resultado_txt <- if (is_cancelled && !is_official) {
+                      t_html("match_cancelled")
+                    } else {
+                      res <- paste(partido$goles_local, "-", partido$goles_visitante)
+                      if (is_official) res <- paste(res, "*")
+                      res
+                    }
+                    has_link <- !is_cancelled || is_official
+                    match_href <- if (has_link) file.path(path_rel_partidos, paste0(partido$id_partido, ".html")) else "javascript:void(0)"
                     rol_traducido <- t(partido$rol)
                     team_display <- if (!is.na(partido$team_name)) partido$team_name else ""
                     tags$tr(
-                      class = if (is_cancelled) "sp-match-row-cancelled" else "sp-clickable-row",
-                      onclick = if (is_cancelled) "" else paste0("window.location='", match_href, "'"),
+                      class = if (is_cancelled && !is_official) "sp-match-row-cancelled" else "sp-clickable-row",
+                      onclick = if (has_link) paste0("window.location='", match_href, "'") else "",
                       tags$td(partido$fecha),
                       tags$td(if (length(partido$equipo) > 0 && !is.na(partido$equipo)) entity_name_spans(partido$equipo) else ""),
                       tags$td(

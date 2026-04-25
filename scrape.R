@@ -627,12 +627,15 @@ guardar_tracking <- function(tracking_df, ruta = "tracking.rds") {
 # ============================================================================
 # DECISIÓN: Máquina de estados para cada ID
 #
-# Retorna: "skip", "scrape_ambos", "scrape_izvestaj"
+# Retorna: "skip", "scrape_ambos", "scrape_izvestaj", "scrape_najava_only"
 # ============================================================================
 decidir_accion <- function(id_chr, tracking_df, exclusiones, cache_ids, ahora) {
-  # 1. Excluidos por ID directo
+  # 1. Excluidos por ID directo → scrape najava only if not yet in cache
   if (id_chr %in% exclusiones$ids) {
-    return("skip")
+    if (id_chr %in% cache_ids) {
+      return("skip")  # Already cached (metadata or full data)
+    }
+    return("scrape_najava_only")  # Need to fetch metadata from najava
   }
 
   # 2. Ya en caché pero sin tracking → datos legacy, tratar como archivado
@@ -710,9 +713,19 @@ parsear_najava <- function(url, id_partido, ss_token = NULL) {
   try(
     {
       info_text_najava <- doc %>%
-        html_elements(".ffm-match-meta__details span, .ffm-najava__info span") %>%
+        html_elements(".ffm-najava__meta span, .ffm-match-meta__details span, .ffm-najava__info span") %>%
         html_text(trim = TRUE)
-      jornada_najava <- str_extract(str_subset(info_text_najava, "(?i)коло"), "\\d+")
+      # Try standard league round: "N. коло"
+      kolo_texts <- str_subset(info_text_najava, "(?i)коло")
+      if (length(kolo_texts) > 0) {
+        jornada_najava <- str_extract(kolo_texts[1], "\\d+")
+      } else {
+        # Fallback: cup rounds like "1/16", "1/8", "1/4", "1/2", "Ф" (final), etc.
+        cup_texts <- str_subset(info_text_najava, "(?i)1/\\d+|полуфинале|финале|четвртфинале|3/4")
+        if (length(cup_texts) > 0) {
+          jornada_najava <- str_trim(cup_texts[1])
+        }
+      }
     },
     silent = TRUE
   )
@@ -1082,6 +1095,32 @@ main <- function() {
   cache_ids <- names(cache)
   ahora <- now(tzone = "Europe/Skopje")
 
+  # Load official results for score lookup during najava-only scraping
+  official_results_lookup <- tibble(id_partido = character(), goles_local = numeric(), goles_visitante = numeric())
+  if (file.exists("official_results.txt")) {
+    tryCatch({
+      official_results_lookup <- read_csv("official_results.txt", show_col_types = FALSE) %>%
+        mutate(id_partido = as.character(id_partido)) %>%
+        distinct(id_partido, .keep_all = TRUE)
+    }, error = function(e) message("   ! Error loading official_results.txt: ", e$message))
+  }
+
+  # --- RETROACTIVE DETECTION: Detect previously-normal matches now in exclusion list ---
+  ids_retroactivos <- intersect(cache_ids, ids_excluidos)
+  # Filter to only those that are NOT already marked as excluded in cache
+  if (length(ids_retroactivos) > 0) {
+    ids_retroactivos <- ids_retroactivos[vapply(ids_retroactivos, function(id) {
+      p_info <- cache[[id]]$partido_info
+      if (is.null(p_info)) return(TRUE)
+      !isTRUE(p_info$es_resultado_oficial) && !isTRUE(p_info$es_cancelado)
+    }, FUN.VALUE = logical(1))]
+  }
+  if (length(ids_retroactivos) > 0) {
+    message(sprintf("   > RETROACTIVE: %d previously-normal match(es) now in exclusion list. Will re-scrape najava.", length(ids_retroactivos)))
+    # Remove from cache_ids so decidir_accion returns "scrape_najava_only" for them
+    cache_ids <- setdiff(cache_ids, ids_retroactivos)
+  }
+
   # Migrar entradas legacy del caché al tracking como Archived
   ids_legacy <- setdiff(cache_ids, tracking$id_partido)
   if (length(ids_legacy) > 0) {
@@ -1175,6 +1214,136 @@ main <- function() {
         next
       }
 
+      # --- SCRAPE NAJAVA ONLY (excluded matches: cancelled / official result) ---
+      if (accion == "scrape_najava_only") {
+        message(sprintf("  [%s] ID %s -> scrape_najava_only (excluded match)", comp$label, id_chr))
+        url_najava <- sprintf("https://ffm.mk/najava/%s/", id_chr)
+        Sys.sleep(runif(1, 1.5, 3))
+
+        najava_excl <- tryCatch(
+          parsear_najava(url_najava, id_chr, ss_token_sesion),
+          error = function(e) {
+            message(sprintf("   Najava %s fallo: %s", id_chr, e$message))
+            NULL
+          }
+        )
+
+        najava_vacia_excl <- is.null(najava_excl) ||
+          (is.na(najava_excl$equipo_local_cyr) && is.na(najava_excl$equipo_visitante_cyr))
+
+        if (najava_vacia_excl) {
+          consecutivos_vacios <- consecutivos_vacios + 1
+          message(sprintf("   ID %s: najava vacía (excluded, %d/7 consecutivos)", id_chr, consecutivos_vacios))
+          if (consecutivos_vacios >= 7) {
+            message(sprintf("   >>> EARLY EXIT: 7 IDs vacíos consecutivos en %s.", comp$label))
+            break
+          }
+          next
+        }
+        consecutivos_vacios <- 0
+
+        # Determine if this is an official result or a plain cancellation
+        is_official <- id_chr %in% official_results_lookup$id_partido
+        is_cancelled_match <- !is_official
+
+        # Build a minimal partido_info tibble
+        comp_nombre_excl <- najava_excl$competicion_najava %||% NA_character_
+        comp_temporada_excl <- najava_excl$competicion_season %||% NA_character_
+        jornada_excl <- if (length(najava_excl$jornada) > 0 && !is.na(najava_excl$jornada[1])) najava_excl$jornada[1] else NA_character_
+        fecha_excl <- NA_character_
+        hora_excl <- NA_character_
+        if (!is.null(najava_excl$fecha_hora_partido) && !is.na(najava_excl$fecha_hora_partido)) {
+          fecha_excl <- format(najava_excl$fecha_hora_partido, "%d.%m.%Y")
+          hora_excl <- format(najava_excl$fecha_hora_partido, "%H:%M")
+        }
+
+        # Get official score if applicable
+        goles_l <- NA_integer_
+        goles_v <- NA_integer_
+        if (is_official) {
+          or_row <- official_results_lookup %>% filter(id_partido == id_chr)
+          if (nrow(or_row) > 0) {
+            goles_l <- as.integer(or_row$goles_local[1])
+            goles_v <- as.integer(or_row$goles_visitante[1])
+          }
+        }
+
+        partido_info_excl <- tibble(
+          id_partido = id_chr,
+          competicion_nombre = comp_nombre_excl,
+          competicion_temporada = comp_temporada_excl,
+          jornada = jornada_excl,
+          fecha = fecha_excl,
+          hora = hora_excl,
+          local = najava_excl$equipo_local_cyr %||% NA_character_,
+          visitante = najava_excl$equipo_visitante_cyr %||% NA_character_,
+          goles_local = goles_l,
+          goles_visitante = goles_v,
+          penales_local = NA_integer_,
+          penales_visitante = NA_integer_,
+          es_resultado_oficial = is_official,
+          es_cancelado = is_cancelled_match,
+          estadio = NA_character_,
+          arbitro_principal_nombre = najava_excl$arbitro_principal_nombre %||% NA_character_,
+          arbitro_asist_1_nombre = najava_excl$arbitro_asist_1_nombre %||% NA_character_,
+          arbitro_asist_2_nombre = najava_excl$arbitro_asist_2_nombre %||% NA_character_,
+          arbitro_asist_4_nombre = najava_excl$arbitro_asist_4_nombre %||% NA_character_,
+          delegado_nombre = najava_excl$delegado_nombre %||% NA_character_,
+          kontrolor = najava_excl$kontrolor %||% NA_character_,
+          var_1_nombre = najava_excl$var_1_nombre %||% NA_character_,
+          var_2_nombre = najava_excl$var_2_nombre %||% NA_character_,
+          var_3_nombre = najava_excl$var_3_nombre %||% NA_character_
+        )
+
+        # Build cache entry with empty event data
+        resultado_excl <- list(
+          partido_info = partido_info_excl,
+          goles = tibble(id_partido = character(), jugadora = character(), equipo_jugadora = character(),
+                         equipo_acreditado = character(), minuto = integer(), dorsal = integer(), tipo = character()),
+          tarjetas = tibble(id_partido = character(), jugadora = character(), id_jugadora = character(),
+                            equipo = character(), dorsal = integer(), minuto = integer(), tipo = character(), motivo = character()),
+          alineacion_local = tibble(id = character(), dorsal = integer(), nombre = character(),
+                                    nombre_latin = character(), es_portera = logical(), es_capitana = logical(), tipo = character()),
+          alineacion_visitante = tibble(id = character(), dorsal = integer(), nombre = character(),
+                                        nombre_latin = character(), es_portera = logical(), es_capitana = logical(), tipo = character()),
+          cambios_local = tibble(minuto = integer(), texto = character()),
+          cambios_visitante = tibble(minuto = integer(), texto = character()),
+          arbitro_principal_nombre = najava_excl$arbitro_principal_nombre %||% NA_character_,
+          arbitro_asist_1_nombre = najava_excl$arbitro_asist_1_nombre %||% NA_character_,
+          arbitro_asist_2_nombre = najava_excl$arbitro_asist_2_nombre %||% NA_character_,
+          arbitro_asist_4_nombre = najava_excl$arbitro_asist_4_nombre %||% NA_character_,
+          delegado_nombre = najava_excl$delegado_nombre %||% NA_character_,
+          kontrolor = najava_excl$kontrolor %||% NA_character_,
+          var_1_nombre = najava_excl$var_1_nombre %||% NA_character_,
+          var_2_nombre = najava_excl$var_2_nombre %||% NA_character_,
+          var_3_nombre = najava_excl$var_3_nombre %||% NA_character_,
+          estadio = NA_character_,
+          oficiales_delegacion = najava_excl$oficiales_delegacion,
+          staff_local = najava_excl$staff_local,
+          staff_visitante = najava_excl$staff_visitante,
+          entrenador_local = najava_excl$entrenador_local,
+          entrenador_visitante = najava_excl$entrenador_visitante
+        )
+
+        cache[[id_chr]] <- resultado_excl
+        cache_ids <- c(cache_ids, id_chr)
+        partidos_procesados <- partidos_procesados + 1
+
+        fecha_hora_excl <- najava_excl$fecha_hora_partido
+        tracking <- actualizar_tracking(
+          tracking, id_chr, "Archived",
+          fecha_partido = if (!is.null(fecha_hora_excl) && !is.na(fecha_hora_excl)) fecha_hora_excl else as.POSIXct(NA, tz = "Europe/Skopje"),
+          ahora = ahora, intentos = 0L, tiene_datos = FALSE,
+          comp_nombre = comp_nombre_excl, comp_temporada = comp_temporada_excl
+        )
+
+        message(sprintf("   OK ID %s: ARCHIVED (excluded - %s)", id_chr, if (is_official) "official result" else "cancelled"))
+
+        saveRDS(cache, ruta_cache)
+        guardar_tracking(tracking, "tracking.rds")
+        next
+      }
+
       message(sprintf("  [%s] ID %s -> acción: %s", comp$label, id_chr, accion))
 
       url_najava <- sprintf("https://ffm.mk/najava/%s/", id_chr)
@@ -1231,8 +1400,9 @@ main <- function() {
 
           match_regla <- reglas_retirados %>%
             filter(
-              (club == najava$equipo_local_cyr | club == najava$equipo_visitante_cyr),
-              (competicion == najava$competicion_completa),
+              (tolower(trimws(club)) == tolower(trimws(najava$equipo_local_cyr)) | 
+               tolower(trimws(club)) == tolower(trimws(najava$equipo_visitante_cyr))),
+              (tolower(trimws(competicion)) == tolower(trimws(najava$competicion_completa))),
               j_match >= jornada_inicio
             )
 
@@ -1241,6 +1411,55 @@ main <- function() {
               "   -> Partido %s omitido: Equipo retirado (%s en %s)",
               id_chr, match_regla$club[1], match_regla$competicion[1]
             ))
+            
+            fecha_excl <- NA_character_
+            hora_excl <- NA_character_
+            if (!is.null(fecha_hora_partido) && !is.na(fecha_hora_partido)) {
+              fecha_excl <- format(fecha_hora_partido, "%d.%m.%Y")
+              hora_excl <- format(fecha_hora_partido, "%H:%M")
+            }
+            
+            partido_info_excl <- tibble(
+              id_partido = id_chr,
+              competicion_nombre = comp_nombre_tracking,
+              competicion_temporada = comp_temporada_tracking,
+              jornada = najava$jornada[1],
+              fecha = fecha_excl,
+              hora = hora_excl,
+              local = najava$equipo_local_cyr %||% NA_character_,
+              visitante = najava$equipo_visitante_cyr %||% NA_character_,
+              goles_local = NA_integer_,
+              goles_visitante = NA_integer_,
+              penales_local = NA_integer_,
+              penales_visitante = NA_integer_,
+              es_resultado_oficial = FALSE,
+              es_cancelado = TRUE,
+              estadio = NA_character_,
+              arbitro_principal_nombre = najava$arbitro_principal_nombre %||% NA_character_,
+              arbitro_asist_1_nombre = najava$arbitro_asist_1_nombre %||% NA_character_,
+              arbitro_asist_2_nombre = najava$arbitro_asist_2_nombre %||% NA_character_,
+              arbitro_asist_4_nombre = najava$arbitro_asist_4_nombre %||% NA_character_,
+              delegado_nombre = najava$delegado_nombre %||% NA_character_,
+              kontrolor = najava$kontrolor %||% NA_character_,
+              var_1_nombre = najava$var_1_nombre %||% NA_character_,
+              var_2_nombre = najava$var_2_nombre %||% NA_character_,
+              var_3_nombre = najava$var_3_nombre %||% NA_character_
+            )
+            
+            cache[[id_chr]] <- list(
+              partido_info = partido_info_excl,
+              goles = tibble(id_partido = character(), jugadora = character(), equipo_jugadora = character(), equipo_acreditado = character(), minuto = integer(), dorsal = integer(), tipo = character()),
+              tarjetas = tibble(id_partido = character(), jugadora = character(), id_jugadora = character(), equipo = character(), dorsal = integer(), minuto = integer(), tipo = character(), motivo = character()),
+              sustituciones = tibble(id_partido = character(), sale_dorsal = integer(), sale_jugadora = character(), entra_dorsal = integer(), entra_jugadora = character(), minuto = integer(), equipo = character()),
+              alineacion_local = if(is.null(najava$jugadoras_local)) tibble() else najava$jugadoras_local,
+              alineacion_visitante = if(is.null(najava$jugadoras_visitante)) tibble() else najava$jugadoras_visitante,
+              staff_local = if(is.null(najava$staff_local)) tibble() else najava$staff_local,
+              staff_visitante = if(is.null(najava$staff_visitante)) tibble() else najava$staff_visitante,
+              oficiales_delegacion = if(is.null(najava$oficiales_delegacion)) tibble() else najava$oficiales_delegacion
+            )
+            cache_ids <- c(cache_ids, id_chr)
+            partidos_procesados <- partidos_procesados + 1
+
             # Marcar como Archived para no volver a preguntar
             tracking <- actualizar_tracking(
               tracking, id_chr, "Archived",
@@ -1248,6 +1467,11 @@ main <- function() {
               ahora = ahora, intentos = 0L, tiene_datos = FALSE,
               comp_nombre = comp_nombre_tracking, comp_temporada = comp_temporada_tracking
             )
+            
+            # Guardado intermedio
+            saveRDS(cache, ruta_cache)
+            guardar_tracking(tracking, "tracking.rds")
+            
             next
           }
         }
@@ -1377,7 +1601,17 @@ main <- function() {
   saveRDS(cache, ruta_cache)
   message(sprintf("\nCaché guardada en %s (total %d partidos)", ruta_cache, length(cache)))
 
-  info_cambios <- list(hubo_cambios = (partidos_procesados > 0), partidos_procesados = names(cache))
+  # Include retroactive IDs in modified match list for incremental builds
+  partidos_modificados_para_info <- if (length(ids_retroactivos) > 0) {
+    unique(c(names(cache), ids_retroactivos))
+  } else {
+    names(cache)
+  }
+  info_cambios <- list(
+    hubo_cambios = (partidos_procesados > 0),
+    partidos_procesados = partidos_modificados_para_info,
+    partidos_modificados_ids = if (length(ids_retroactivos) > 0) ids_retroactivos else character(0)
+  )
   saveRDS(info_cambios, "cache_info.rds")
 
   # ---- RESUMEN FINAL ----

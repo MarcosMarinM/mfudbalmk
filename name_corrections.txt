@@ -408,6 +408,7 @@ mk,sq,es,en
 Ванчо Смиљковиќ,Vančo Smiljković,Vančo Smiljković,Vančo Smiljković
 Варрен Тчимбембе,Varren Tčimbembe,Varren Tčimbembe,Varren Tčimbembe
 Васиљко Антиќ,Vasiljko Antić,Vasiljko Antić,Vasiljko Antić
+Басироу Компаоре,Bassirou Compaoré,Bassirou Compaoré,Bassirou Compaoré
 Васко Николиќ,Vasko Nikolić,Vasko Nikolić,Vasko Nikolić
 Васко Рајковиќ,Vasko Rajković,Vasko Rajković,Vasko Rajković
 Васко Цветановиќ,Vasko Cvetanović,Vasko Cvetanović,Vasko Cvetanović

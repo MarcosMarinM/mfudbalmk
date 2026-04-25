@@ -1295,9 +1295,12 @@ function initializeTeamProfilePage() {
     let html = `<div class="match-list-container"><div class="match-list-header"><div>${t.col_date}</div><div>${t.col_match}</div><div>${t.col_competition || 'Competition'}</div></div>`;
     filteredMatches.forEach(match => {
         const isCancelled = !!match.es_cancelado;
-        const matchURL = (match.id_partido && !isCancelled) ? `${getBasePath()}natprevari/${match.id_partido}.html` : '#';
-        const rowClass = isCancelled ? 'match-list-row cancelled' : 'match-list-row clickable-row';
-        const scoreText = isCancelled ? t.match_cancelled : `${match.goles_local} : ${match.goles_visitante}`;
+        const isOfficial = !!match.es_resultado_oficial;
+        const hasLink = match.id_partido && (!isCancelled || isOfficial);
+        const matchURL = hasLink ? `${getBasePath()}natprevari/${match.id_partido}.html` : '#';
+        const rowClass = (isCancelled && !isOfficial) ? 'match-list-row cancelled' : 'match-list-row clickable-row';
+        const scoreSuffix = isOfficial ? '*' : '';
+        const scoreText = (isCancelled && !isOfficial) ? t.match_cancelled : `${match.goles_local}${scoreSuffix} : ${match.goles_visitante}${scoreSuffix}`;
         html += `<div class="${rowClass}" onclick="${matchURL !== '#' ? `window.location.href='${matchURL}'` : ''}">
           <div class="cell-date">${match.fecha}</div>
           <div class="cell-match"><span class="team-home">${match.local_lang} <img src="${match.home_logo_url}" class="team-logo-small"></span><span class="match-score">${scoreText}</span><span class="team-away"><img src="${match.away_logo_url}" class="team-logo-small"> ${match.visitante_lang}</span></div>
@@ -1339,12 +1342,17 @@ function initializeCompetitionHub() {
     if (roundData.partidos.length === 0) { matchesContainerEl.innerHTML = `<p class="comp-hub-no-matches">${t.no_matches_in_round}</p>`; return; }
     roundData.partidos.forEach(partido => {
       const isCancelled = !!partido.es_cancelado;
-      const matchLink = (partido.id_partido && !isCancelled) ? `${getBasePath()}natprevari/${partido.id_partido}.html` : 'javascript:void(0)';
-      const isClickable = (partido.id_partido && !isCancelled) ? 'clickable' : '';
-      const scoreText = isCancelled ? t.match_cancelled : partido.resultado;
+      const isOfficial = !!partido.es_resultado_oficial;
+      const hasLink = partido.id_partido && (!isCancelled || isOfficial);
+      const matchLink = hasLink ? `${getBasePath()}natprevari/${partido.id_partido}.html` : 'javascript:void(0)';
+      const wrapperTag = hasLink ? 'a' : 'div';
+      const hrefAttr = hasLink ? `href="${matchLink}"` : '';
+      const isClickable = hasLink ? 'clickable' : '';
+      const scoreSuffix = isOfficial ? '*' : '';
+      const scoreText = (isCancelled && !isOfficial) ? t.match_cancelled : (partido.resultado ? partido.resultado : '-');
       const stadiumInfo = partido.lugar_lang ? `<div class="comp-hub-match-stadium">${t.stadium}: ${partido.lugar_lang}</div>` : '';
       const dateInfo = partido.fecha ? `<div class="comp-hub-match-date">${partido.fecha}</div>` : '';
-      matchesContainerEl.innerHTML += `<a class="comp-hub-match-row ${isClickable}" href="${matchLink}"><div class="comp-hub-match-time">${dateInfo} ${stadiumInfo}</div><div class="comp-hub-match-teams"><span class="comp-hub-team-home">${partido.local_lang} <img src="${partido.local_logo_path}" class="comp-hub-team-logo"></span><span class="comp-hub-match-score">${scoreText}</span><span class="comp-hub-team-away"><img src="${partido.visitante_logo_path}" class="comp-hub-team-logo"> ${partido.visitante_lang}</span></div></a>`;
+      matchesContainerEl.innerHTML += `<${wrapperTag} class="comp-hub-match-row ${isClickable}" ${hrefAttr}><div class="comp-hub-match-time">${dateInfo} ${stadiumInfo}</div><div class="comp-hub-match-teams"><span class="comp-hub-team-home">${partido.local_lang} <img src="${partido.local_logo_path}" class="comp-hub-team-logo"></span><span class="comp-hub-match-score">${scoreText}</span><span class="comp-hub-team-away"><img src="${partido.visitante_logo_path}" class="comp-hub-team-logo"> ${partido.visitante_lang}</span></div></${wrapperTag}>`;
     });
   }
 
@@ -1369,8 +1377,8 @@ function initializeCompetitionHub() {
     }
   }
 
-  prevRoundBtn.addEventListener('click', () => { if (currentRoundIndex > 0) { currentRoundIndex--; renderScheduleRound(currentRoundIndex); } });
-  nextRoundBtn.addEventListener('click', () => { if (currentRoundIndex < hubData.jornadas_data.length - 1) { currentRoundIndex++; renderScheduleRound(currentRoundIndex); } });
+  prevRoundBtn.addEventListener('click', () => { if (currentRoundIndex > 0) { currentRoundIndex--; window.currentRoundIndex = currentRoundIndex; renderScheduleRound(currentRoundIndex); } });
+  nextRoundBtn.addEventListener('click', () => { if (currentRoundIndex < hubData.jornadas_data.length - 1) { currentRoundIndex++; window.currentRoundIndex = currentRoundIndex; renderScheduleRound(currentRoundIndex); } });
   if (statsTabsContainer) {
     statsTabsContainer.addEventListener('click', (e) => {
       const targetButton = e.target.closest('.comp-hub-tab-btn');

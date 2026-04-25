@@ -1416,22 +1416,29 @@ crear_bloque_resultados_competicion <- function(comp_info, partidos_jornada_df, 
     logo_visitante_src <- get_club_logo_path(partido$visitante, path_to_root = path_to_root)
 
     is_cancelled <- isTRUE(partido$es_cancelado)
-    ruta_partido_html <- if (!is.na(partido$id_partido) && !is_cancelled) file.path(nombres_carpetas_relativos$partidos, paste0(partido$id_partido, ".html")) else "javascript:void(0)"
+    is_official <- isTRUE(partido$es_resultado_oficial)
+    # Cancelled-only matches are not clickable; official results (even if also cancelled) link to their profile
+    has_link <- !is.na(partido$id_partido) && (!is_cancelled || is_official)
+    ruta_partido_html <- if (has_link) file.path(nombres_carpetas_relativos$partidos, paste0(partido$id_partido, ".html")) else "javascript:void(0)"
+
+    # Show scores for played matches and official results (with asterisk)
+    show_score <- has_link && !is.na(partido$goles_local) && !is.na(partido$goles_visitante)
+    score_suffix <- if (is_official) "*" else ""
 
     fila_local <- tags$div(
       class = "match-row",
       tags$div(class = "team-info", tags$img(src = logo_local_src, class = "logo"), tags$span(class = "name", entity_name_spans(partido$local))),
-      if (!is.na(partido$id_partido) && !is_cancelled) tags$span(class = "score", partido$goles_local) else NULL
+      if (show_score) tags$span(class = "score", paste0(partido$goles_local, score_suffix)) else NULL
     )
     fila_visitante <- tags$div(
       class = "match-row",
       tags$div(class = "team-info", tags$img(src = logo_visitante_src, class = "logo"), tags$span(class = "name", entity_name_spans(partido$visitante))),
-      if (!is.na(partido$id_partido) && !is_cancelled) tags$span(class = "score", partido$goles_visitante) else NULL
+      if (show_score) tags$span(class = "score", paste0(partido$goles_visitante, score_suffix)) else NULL
     )
 
     tags$a(
       class = case_when(
-        is_cancelled ~ "match-block cancelled",
+        is_cancelled && !is_official ~ "match-block cancelled",
         is.na(partido$id_partido) ~ "match-block placeholder",
         TRUE ~ "match-block"
       ),
@@ -1449,7 +1456,7 @@ crear_bloque_resultados_competicion <- function(comp_info, partidos_jornada_df, 
       tags$div(
         class = "match-content",
         fila_local,
-        if (is_cancelled) {
+        if (is_cancelled && !is_official) {
           tags$span(class = "score-separator-cancelled", t_html("match_cancelled"))
         } else if (is.na(partido$id_partido)) {
           tags$span(class = "score-separator-placeholder", "-")

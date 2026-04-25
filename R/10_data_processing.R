@@ -286,6 +286,25 @@ message("Step 10.0: Raw data cleansing complete.")
 ### 10.1. Create Master Dataframes from Cleaned Source
 message("Step 10.1: Creating master dataframes from the clean source...")
 
+# Load official_results.txt into official_results_df so the existing merge logic works.
+if (!exists("official_results_df")) {
+  official_results_df <- tibble(id_partido = character(), goles_local = numeric(), goles_visitante = numeric())
+  ruta_oficial_candidates <- c("official_results.txt", "dictionaries/official_results.txt")
+  ruta_oficial_existente <- ruta_oficial_candidates[file.exists(ruta_oficial_candidates)]
+  if (length(ruta_oficial_existente) > 0) {
+    tryCatch({
+      official_results_df <- read.csv(ruta_oficial_existente[[1]], stringsAsFactors = FALSE, encoding = "UTF-8") %>%
+        mutate(id_partido = as.character(id_partido)) %>%
+        distinct(id_partido, .keep_all = TRUE)
+      message(paste("   > Loaded", nrow(official_results_df), "official results from", ruta_oficial_existente[[1]]))
+    }, error = function(e) {
+      warning("Could not load official results. Continuing with an empty dataframe.")
+    })
+  } else {
+    message("   > official_results.txt not found. Continuing with an empty official_results_df.")
+  }
+}
+
 # Defensive fallback in case the loader script did not define cancelled IDs.
 if (!exists("cancelled_matches_ids")) {
   cancelled_matches_ids <- character(0)
@@ -294,9 +313,13 @@ if (!exists("cancelled_matches_ids")) {
 
   if (length(ruta_cancelados_existente) > 0) {
     tryCatch({
-      temp_ids <- readLines(ruta_cancelados_existente[[1]], warn = FALSE)
-      temp_ids <- trimws(temp_ids)
-      cancelled_matches_ids <- temp_ids[temp_ids != ""]
+      temp_lines <- readLines(ruta_cancelados_existente[[1]], warn = FALSE)
+      temp_lines <- trimws(temp_lines)
+      temp_lines <- temp_lines[temp_lines != "" & !startsWith(temp_lines, "#")]
+      # Only single-value lines (no comma) are plain match IDs.
+      # Lines with commas are team withdrawal rules (handled by scraper).
+      plain_id_lines <- temp_lines[!grepl(",", temp_lines)]
+      cancelled_matches_ids <- plain_id_lines
       message(paste("   > Loaded", length(cancelled_matches_ids), "cancelled match IDs from", ruta_cancelados_existente[[1]]))
     }, error = function(e) {
       warning("Could not load cancelled matches list. Continuing with an empty list.")
@@ -367,9 +390,18 @@ partidos_df <- partidos_df %>%
     competicion_temporada = ajustar_temporada_baraz(competicion_nombre, competicion_temporada)
   )
 
-# 10.1.1.0 Calculate cancellation status based on ID list
+# 10.1.1.0 Calculate cancellation status: combine explicit IDs + scraper-set flags
 partidos_df <- partidos_df %>%
-  mutate(es_cancelado = as.character(id_partido) %in% cancelled_matches_ids)
+  mutate(
+    es_cancelado = coalesce(
+      # 1. If the scraper already set es_cancelado, use that
+      if ("es_cancelado" %in% names(.)) es_cancelado else NA,
+      # 2. Otherwise check if the match ID is in the cancelled list
+      as.character(id_partido) %in% cancelled_matches_ids,
+      # 3. Default to FALSE
+      FALSE
+    )
+  )
 
 # 10.1.1.1. Normalize and attach competition category to each match
 normalize_competition_name_for_lookup <- function(name) {
