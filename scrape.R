@@ -2,8 +2,18 @@
 # scrape_ffm_masculino.R
 # Scraper inteligente con tracking de estados, early-exit, y optimización de peticiones
 
-if (!require("pacman")) install.packages("pacman")
-pacman::p_load(rvest, xml2, dplyr, tidyr, stringr, purrr, tibble, readr, lubridate, httr, jsonlite)
+# --- Instalación y carga robusta de paquetes ---
+pkgs <- c("rvest", "xml2", "dplyr", "tidyr", "stringr", "purrr", 
+          "tibble", "readr", "lubridate", "httr", "jsonlite")
+
+# Instalar los que falten, incluyendo dependencias
+installed_pkgs <- pkgs %in% installed.packages()
+if (any(!installed_pkgs)) {
+  install.packages(pkgs[!installed_pkgs], dependencies = TRUE)
+}
+
+# Cargar todos explícitamente
+invisible(lapply(pkgs, library, character.only = TRUE))
 
 # ============================================================================
 # RANGOS DE IDS
