@@ -67,19 +67,19 @@ resultados_exitosos <- map(resultados_exitosos, function(res) {
   if (!is.null(res$arbitro_asist_4_nombre) && length(res$arbitro_asist_4_nombre) == 1 && !is.na(res$arbitro_asist_4_nombre) && is_latin(res$arbitro_asist_4_nombre)) res$arbitro_asist_4_nombre <- latin_to_cyrillic(res$arbitro_asist_4_nombre)
 
   # Standardize player names in rosters and events (Case: Scraper sends Latin names)
-  if (nrow(res$alineacion_local) > 0) {
+  if (nrow(res$alineacion_local) > 0 && "nombre" %in% names(res$alineacion_local)) {
     res$alineacion_local$nombre <- sapply(res$alineacion_local$nombre, function(n) if(!is.na(n) && is_latin(n)) latin_to_cyrillic(n) else n)
   }
-  if (nrow(res$alineacion_visitante) > 0) {
+  if (nrow(res$alineacion_visitante) > 0 && "nombre" %in% names(res$alineacion_visitante)) {
     res$alineacion_visitante$nombre <- sapply(res$alineacion_visitante$nombre, function(n) if(!is.na(n) && is_latin(n)) latin_to_cyrillic(n) else n)
   }
-  if (nrow(res$goles) > 0) {
+  if (nrow(res$goles) > 0 && "jugadora" %in% names(res$goles)) {
     res$goles$jugadora <- sapply(res$goles$jugadora, function(n) if(!is.na(n) && is_latin(n)) latin_to_cyrillic(n) else n)
   }
-  if (nrow(res$tarjetas) > 0) {
+  if (nrow(res$tarjetas) > 0 && "jugadora" %in% names(res$tarjetas)) {
     res$tarjetas$jugadora <- sapply(res$tarjetas$jugadora, function(n) if(!is.na(n) && is_latin(n)) latin_to_cyrillic(n) else n)
   }
-  if (!is.null(res$penales) && nrow(res$penales) > 0) {
+  if (!is.null(res$penales) && nrow(res$penales) > 0 && "jugadora" %in% names(res$penales)) {
     res$penales$jugadora <- sapply(res$penales$jugadora, function(n) if(!is.na(n) && is_latin(n)) latin_to_cyrillic(n) else n)
   }
 
@@ -197,13 +197,13 @@ if (is.null(attr(resultados_exitosos, "nombres_procesados"))) {
     if (!is.null(mapa_conversiones_df)) {
       # Dataframes principales
       res$partido_info <- aplicar_conversiones(res$partido_info, c("local", "visitante", "competicion_nombre"), mapa_conversiones_df)
-      if (nrow(res$alineacion_local) > 0) res$alineacion_local <- aplicar_conversiones(res$alineacion_local, "nombre", mapa_conversiones_df)
-      if (nrow(res$alineacion_visitante) > 0) res$alineacion_visitante <- aplicar_conversiones(res$alineacion_visitante, "nombre", mapa_conversiones_df)
+      if (nrow(res$alineacion_local) > 0 && "nombre" %in% names(res$alineacion_local)) res$alineacion_local <- aplicar_conversiones(res$alineacion_local, "nombre", mapa_conversiones_df)
+      if (nrow(res$alineacion_visitante) > 0 && "nombre" %in% names(res$alineacion_visitante)) res$alineacion_visitante <- aplicar_conversiones(res$alineacion_visitante, "nombre", mapa_conversiones_df)
 
       # CORRECCI\u00d3N DEFINITIVA PARA LA CRONOLOG\u00cdA: Aplicar a los dataframes de eventos AHORA.
-      if (nrow(res$goles) > 0) res$goles <- aplicar_conversiones(res$goles, c("jugadora", "equipo_jugadora", "equipo_acreditado"), mapa_conversiones_df)
-      if (nrow(res$tarjetas) > 0) res$tarjetas <- aplicar_conversiones(res$tarjetas, c("jugadora", "equipo"), mapa_conversiones_df)
-      if (!is.null(res$penales) && nrow(res$penales) > 0) res$penales <- aplicar_conversiones(res$penales, c("jugadora", "equipo"), mapa_conversiones_df)
+      if (nrow(res$goles) > 0 && "jugadora" %in% names(res$goles)) res$goles <- aplicar_conversiones(res$goles, c("jugadora", "equipo_jugadora", "equipo_acreditado"), mapa_conversiones_df)
+      if (nrow(res$tarjetas) > 0 && "jugadora" %in% names(res$tarjetas)) res$tarjetas <- aplicar_conversiones(res$tarjetas, c("jugadora", "equipo"), mapa_conversiones_df)
+      if (!is.null(res$penales) && nrow(res$penales) > 0 && "jugadora" %in% names(res$penales)) res$penales <- aplicar_conversiones(res$penales, c("jugadora", "equipo"), mapa_conversiones_df)
 
       # Vectores de texto
       res$estadio <- aplicar_conversiones(res$estadio, mapa_df = mapa_conversiones_df)
@@ -231,11 +231,11 @@ if (is.null(attr(resultados_exitosos, "nombres_procesados"))) {
       }, USE.NAMES = FALSE)
     }
 
-    if (nrow(res$alineacion_local) > 0) res$alineacion_local$nombre <- reordenar_nombre_simple(res$alineacion_local$nombre)
-    if (nrow(res$alineacion_visitante) > 0) res$alineacion_visitante$nombre <- reordenar_nombre_simple(res$alineacion_visitante$nombre)
-    if (nrow(res$goles) > 0) res$goles$jugadora <- reordenar_nombre_simple(res$goles$jugadora)
-    if (nrow(res$tarjetas) > 0) res$tarjetas$jugadora <- reordenar_nombre_simple(res$tarjetas$jugadora)
-    if (!is.null(res$penales) && nrow(res$penales) > 0) res$penales$jugadora <- reordenar_nombre_simple(res$penales$jugadora)
+    if (nrow(res$alineacion_local) > 0 && "nombre" %in% names(res$alineacion_local)) res$alineacion_local$nombre <- reordenar_nombre_simple(res$alineacion_local$nombre)
+    if (nrow(res$alineacion_visitante) > 0 && "nombre" %in% names(res$alineacion_visitante)) res$alineacion_visitante$nombre <- reordenar_nombre_simple(res$alineacion_visitante$nombre)
+    if (nrow(res$goles) > 0 && "jugadora" %in% names(res$goles)) res$goles$jugadora <- reordenar_nombre_simple(res$goles$jugadora)
+    if (nrow(res$tarjetas) > 0 && "jugadora" %in% names(res$tarjetas)) res$tarjetas$jugadora <- reordenar_nombre_simple(res$tarjetas$jugadora)
+    if (!is.null(res$penales) && nrow(res$penales) > 0 && "jugadora" %in% names(res$penales)) res$penales$jugadora <- reordenar_nombre_simple(res$penales$jugadora)
 
     res$arbitro_principal_nombre <- reordenar_nombre_simple(res$arbitro_principal_nombre)
     res$arbitro_asist_1_nombre <- reordenar_nombre_simple(res$arbitro_asist_1_nombre)
@@ -575,12 +575,13 @@ goles_df_unificado <- map_dfr(resultados_exitosos, "goles")
 tarjetas_df_unificado <- map_dfr(resultados_exitosos, "tarjetas")
 penales_df_unificado <- map_dfr(resultados_exitosos, "penales")
 
-if (exists("official_results_df") && nrow(official_results_df) > 0) {
-  ids_oficiales <- official_results_df$id_partido
-  if (nrow(goles_df_unificado) > 0) goles_df_unificado <- goles_df_unificado %>% filter(!id_partido %in% ids_oficiales)
-  if (nrow(tarjetas_df_unificado) > 0) tarjetas_df_unificado <- tarjetas_df_unificado %>% filter(!id_partido %in% ids_oficiales)
-  if (!is.null(penales_df_unificado) && nrow(penales_df_unificado) > 0) penales_df_unificado <- penales_df_unificado %>% filter(!id_partido %in% ids_oficiales)
-}
+  # Exclude stats for matches that are cancelled or have an official result override
+  ids_excluidos_stats <- partidos_df %>% filter(isTRUE(es_cancelado) | isTRUE(es_resultado_oficial)) %>% pull(id_partido)
+  if (length(ids_excluidos_stats) > 0) {
+    if (nrow(goles_df_unificado) > 0) goles_df_unificado <- goles_df_unificado %>% filter(!id_partido %in% ids_excluidos_stats)
+    if (nrow(tarjetas_df_unificado) > 0) tarjetas_df_unificado <- tarjetas_df_unificado %>% filter(!id_partido %in% ids_excluidos_stats)
+    if (!is.null(penales_df_unificado) && nrow(penales_df_unificado) > 0) penales_df_unificado <- penales_df_unificado %>% filter(!id_partido %in% ids_excluidos_stats)
+  }
 
 arbitros_df <- map_dfr(resultados_exitosos, function(res) {
   if (is.null(res) || is.null(res$partido_info)) {
@@ -813,9 +814,8 @@ apariciones_df_raw <- map_dfr(resultados_exitosos, ~ bind_rows(
   .x$alineacion_visitante %>% mutate(id_partido = .x$partido_info$id_partido, equipo = .x$partido_info$visitante)
 )) %>% mutate(nombre = str_squish(nombre))
 
-if (exists("official_results_df") && nrow(official_results_df) > 0) {
-  ids_oficiales <- official_results_df$id_partido
-  apariciones_df_raw <- apariciones_df_raw %>% filter(!id_partido %in% ids_oficiales)
+if (exists("ids_excluidos_stats") && length(ids_excluidos_stats) > 0) {
+  apariciones_df_raw <- apariciones_df_raw %>% filter(!id_partido %in% ids_excluidos_stats)
 }
 # --- Mapeo de Identificadores y Algoritmo ADE (Automated Disambiguation Engine) ---
 message("   > Running Automated Disambiguation Engine (ADE)...")
@@ -1086,6 +1086,9 @@ minutos_df_raw <- map_dfr(resultados_exitosos, function(res) {
   calcular_minutos_equipo <- function(alineacion, cambios, duracion_partido) {
     if (is.null(alineacion) || nrow(alineacion) == 0) {
       return(NULL)
+    }
+    if (!"tipo" %in% names(alineacion)) {
+      alineacion <- alineacion %>% mutate(tipo = "Desconocido")
     }
     jugadoras_con_minutos <- alineacion %>% 
       mutate(

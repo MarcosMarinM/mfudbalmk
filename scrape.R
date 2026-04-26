@@ -660,11 +660,11 @@ decidir_accion <- function(id_chr, tracking_df, exclusiones, cache_ids, ahora) {
     if (!is.na(fecha_p) && ahora < fecha_p + minutes(120)) {
       return("skip") # Demasiado pronto, el partido no ha terminado
     }
-    return("scrape_izvestaj") # Ya deberían haber pasado 120 min
+    return("scrape_ambos") # Must fetch najava again to check withdrawal rules
   }
 
   if (estado == "Live_Post") {
-    return("scrape_izvestaj")
+    return("scrape_ambos") # Must fetch najava again to check withdrawal rules
   } # Reintento
 
   return("scrape_ambos") # Estado desconocido, intentar todo
@@ -1105,8 +1105,37 @@ main <- function() {
     }, error = function(e) message("   ! Error loading official_results.txt: ", e$message))
   }
 
+  # Evaluate withdrawal rules against the cache to dynamically find excluded IDs
+  ids_excluidos_dinamicos <- character(0)
+  if (nrow(exclusiones$reglas) > 0) {
+    ids_excluidos_dinamicos <- unlist(lapply(cache_ids, function(id) {
+      p_info <- cache[[id]]$partido_info
+      if (is.null(p_info)) return(NULL)
+      j_match <- suppressWarnings(as.integer(p_info$jornada))
+      if (is.na(j_match)) return(NULL)
+
+      match_regla <- exclusiones$reglas %>%
+        rowwise() %>%
+        filter(
+          (grepl(tolower(trimws(club)), tolower(trimws(p_info$local)), fixed = TRUE) |
+           grepl(tolower(trimws(p_info$local)), tolower(trimws(club)), fixed = TRUE) |
+           grepl(tolower(trimws(club)), tolower(trimws(p_info$visitante)), fixed = TRUE) |
+           grepl(tolower(trimws(p_info$visitante)), tolower(trimws(club)), fixed = TRUE)),
+          (grepl(tolower(trimws(competicion)), tolower(trimws(p_info$competicion_nombre)), fixed = TRUE) |
+           grepl(tolower(trimws(p_info$competicion_nombre)), tolower(trimws(competicion)), fixed = TRUE)),
+          j_match >= jornada_inicio
+        ) %>%
+        ungroup()
+
+      if (nrow(match_regla) > 0) return(id)
+      return(NULL)
+    }))
+  }
+  
+  ids_excluidos_all <- unique(c(ids_excluidos, ids_excluidos_dinamicos))
+
   # --- RETROACTIVE DETECTION: Detect previously-normal matches now in exclusion list ---
-  ids_retroactivos <- intersect(cache_ids, ids_excluidos)
+  ids_retroactivos <- intersect(cache_ids, ids_excluidos_all)
   # Filter to only those that are NOT already marked as excluded in cache
   if (length(ids_retroactivos) > 0) {
     ids_retroactivos <- ids_retroactivos[vapply(ids_retroactivos, function(id) {
@@ -1115,10 +1144,24 @@ main <- function() {
       !isTRUE(p_info$es_resultado_oficial) && !isTRUE(p_info$es_cancelado)
     }, FUN.VALUE = logical(1))]
   }
-  if (length(ids_retroactivos) > 0) {
-    message(sprintf("   > RETROACTIVE: %d previously-normal match(es) now in exclusion list. Will re-scrape najava.", length(ids_retroactivos)))
-    # Remove from cache_ids so decidir_accion returns "scrape_najava_only" for them
-    cache_ids <- setdiff(cache_ids, ids_retroactivos)
+
+  # --- REVERSE RETROACTIVE DETECTION: Detect matches that were excluded but no longer are ---
+  ids_retroactivos_reverse <- setdiff(cache_ids, ids_excluidos_all)
+  if (length(ids_retroactivos_reverse) > 0) {
+    ids_retroactivos_reverse <- ids_retroactivos_reverse[vapply(ids_retroactivos_reverse, function(id) {
+      p_info <- cache[[id]]$partido_info
+      if (is.null(p_info)) return(FALSE)
+      isTRUE(p_info$es_resultado_oficial) || isTRUE(p_info$es_cancelado)
+    }, FUN.VALUE = logical(1))]
+  }
+
+  ids_retroactivos_all <- unique(c(ids_retroactivos, ids_retroactivos_reverse))
+
+  if (length(ids_retroactivos_all) > 0) {
+    message(sprintf("   > RETROACTIVE: %d match(es) changed exclusion status. Will re-scrape.", length(ids_retroactivos_all)))
+    # Remove from cache_ids and tracking so decidir_accion returns "scrape_ambos" or "scrape_najava_only"
+    cache_ids <- setdiff(cache_ids, ids_retroactivos_all)
+    tracking <- tracking %>% filter(!id_partido %in% ids_retroactivos_all)
   }
 
   # Migrar entradas legacy del caché al tracking como Archived
@@ -1399,12 +1442,17 @@ main <- function() {
           j_match <- as.integer(najava$jornada[1])
 
           match_regla <- reglas_retirados %>%
+            rowwise() %>%
             filter(
-              (tolower(trimws(club)) == tolower(trimws(najava$equipo_local_cyr)) | 
-               tolower(trimws(club)) == tolower(trimws(najava$equipo_visitante_cyr))),
-              (tolower(trimws(competicion)) == tolower(trimws(najava$competicion_completa))),
+              (grepl(tolower(trimws(club)), tolower(trimws(najava$equipo_local_cyr)), fixed = TRUE) |
+               grepl(tolower(trimws(najava$equipo_local_cyr)), tolower(trimws(club)), fixed = TRUE) |
+               grepl(tolower(trimws(club)), tolower(trimws(najava$equipo_visitante_cyr)), fixed = TRUE) |
+               grepl(tolower(trimws(najava$equipo_visitante_cyr)), tolower(trimws(club)), fixed = TRUE)),
+              (grepl(tolower(trimws(competicion)), tolower(trimws(najava$competicion_completa)), fixed = TRUE) |
+               grepl(tolower(trimws(najava$competicion_completa)), tolower(trimws(competicion)), fixed = TRUE)),
               j_match >= jornada_inicio
-            )
+            ) %>%
+            ungroup()
 
           if (nrow(match_regla) > 0) {
             message(sprintf(
@@ -1602,15 +1650,15 @@ main <- function() {
   message(sprintf("\nCaché guardada en %s (total %d partidos)", ruta_cache, length(cache)))
 
   # Include retroactive IDs in modified match list for incremental builds
-  partidos_modificados_para_info <- if (length(ids_retroactivos) > 0) {
-    unique(c(names(cache), ids_retroactivos))
+  partidos_modificados_para_info <- if (length(ids_retroactivos_all) > 0) {
+    unique(c(names(cache), ids_retroactivos_all))
   } else {
     names(cache)
   }
   info_cambios <- list(
     hubo_cambios = (partidos_procesados > 0),
     partidos_procesados = partidos_modificados_para_info,
-    partidos_modificados_ids = if (length(ids_retroactivos) > 0) ids_retroactivos else character(0)
+    partidos_modificados_ids = if (length(ids_retroactivos_all) > 0) ids_retroactivos_all else character(0)
   )
   saveRDS(info_cambios, "cache_info.rds")
 

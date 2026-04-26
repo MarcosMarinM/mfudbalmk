@@ -811,7 +811,7 @@ if (hubo_cambios) {
                 is_placeholder_match <- is.na(partido$id_partido)
                 local_name <- entidades_df_lang$current_lang_name[match(partido$local, entidades_df_lang$original_name)]
                 visitante_name <- entidades_df_lang$current_lang_name[match(partido$visitante, entidades_df_lang$original_name)]
-                is_cancelled <- isTRUE(partido$es_cancelado)
+                is_cancelled <- isTRUE(partido$es_cancelado) && !isTRUE(partido$es_resultado_oficial)
                 resultado_texto <- if (is_cancelled) {
                   t_html("match_cancelled")
                 } else if (is_placeholder_match) {
@@ -892,7 +892,7 @@ if (hubo_cambios) {
                 map(1:nrow(partidos_jornada), function(k) {
                   partido <- partidos_jornada[k, ]
                   is_placeholder_match <- is.na(partido$id_partido)
-                  is_cancelled <- isTRUE(partido$es_cancelado)
+                  is_cancelled <- isTRUE(partido$es_cancelado) && !isTRUE(partido$es_resultado_oficial)
 
                   local_name <- entidades_df_lang$current_lang_name[match(partido$local, entidades_df_lang$original_name)]
                   visitante_name <- entidades_df_lang$current_lang_name[match(partido$visitante, entidades_df_lang$original_name)]
@@ -2337,7 +2337,7 @@ if (hubo_cambios) {
                               } else {
                                 tibble()
                               }
-                              is_cancelled <- isTRUE(partido_row$es_cancelado)
+                              is_cancelled <- isTRUE(partido_row$es_cancelado) && !isTRUE(partido_row$es_resultado_oficial)
                               row_class <- if (is_cancelled) "match-list-row cancelled" else "match-list-row clickable-row"
                               match_href <- if (!is.na(partido_id_val) && partido_id_val != "" && !is_cancelled) file.path("..", nombres_carpetas_relativos$partidos, paste0(partido_id_val, ".html")) else "javascript:void(0)"
                               score_text <- if (is_cancelled) t_html("match_cancelled") else tags$span(paste(partido_row$goles_local, ":", partido_row$goles_visitante))
