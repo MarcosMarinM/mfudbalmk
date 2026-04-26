@@ -888,36 +888,63 @@ if (hubo_cambios) {
                 tagList(t_html("round_prefix"), " ", j)
               }
               tagList(
-                tags$h3(class = "jornada-header", header_text),
+                tags$div(
+                  class = "comp-hub-section-header",
+                  style = "margin-top: 30px;",
+                  tags$h3(class = "comp-hub-section-title", header_text)
+                ),
                 map(1:nrow(partidos_jornada), function(k) {
                   partido <- partidos_jornada[k, ]
                   is_placeholder_match <- is.na(partido$id_partido)
                   is_cancelled <- isTRUE(partido$es_cancelado) && !isTRUE(partido$es_resultado_oficial)
 
-                  local_name <- entidades_df_lang$current_lang_name[match(partido$local, entidades_df_lang$original_name)]
-                  visitante_name <- entidades_df_lang$current_lang_name[match(partido$visitante, entidades_df_lang$original_name)]
-
                   resultado_texto <- if (is_cancelled) {
                     t_html("match_cancelled")
                   } else if (is_placeholder_match) {
-                    tags$span(" - ")
+                    " - "
                   } else {
                     res_base <- paste(partido$goles_local, "-", partido$goles_visitante)
                     if (!is.na(partido$penales_local)) res_base <- sprintf("%s (%s - %s)", res_base, partido$penales_local, partido$penales_visitante)
                     if (isTRUE(partido$es_resultado_oficial)) res_base <- paste(res_base, "*")
-                    tags$span(res_base)
+                    res_base
                   }
 
-                  contenido_comun <- tagList(
-                    tags$span(class = "equipo equipo-local", get_logo_tag(partido$local), entity_name_spans(partido$local)),
-                    tags$span(class = "resultado", resultado_texto),
-                    tags$span(class = "equipo equipo-visitante", entity_name_spans(partido$visitante), get_logo_tag(partido$visitante))
+                  lugar_partido_mk <- estadios_df %>%
+                    filter(id_partido == partido$id_partido) %>%
+                    pull(estadio)
+                  lugar_partido_lang <- if (length(lugar_partido_mk) > 0 && !is.na(lugar_partido_mk[1])) {
+                    (entidades_df_lang %>% filter(original_name == lugar_partido_mk[1]))$current_lang_name[1]
+                  } else {
+                    NA_character_
+                  }
+
+                  date_html <- if (!is.na(partido$fecha)) tags$div(class = "comp-hub-match-date", partido$fecha) else NULL
+                  stadium_html <- if (!is.na(lugar_partido_lang)) tags$div(class = "comp-hub-match-stadium", t_html("match_stadium"), ": ", entity_name_spans(lugar_partido_mk[1])) else NULL
+
+                  is_clickable <- !is_placeholder_match && !is_cancelled
+                  wrapper_class <- paste0("comp-hub-match-row", if (is_clickable) " clickable" else "")
+
+                  match_content <- tagList(
+                    if (!is.null(date_html) || !is.null(stadium_html)) {
+                      tags$div(class = "comp-hub-match-time", date_html, stadium_html)
+                    },
+                    tags$div(class = "comp-hub-match-teams",
+                      tags$span(class = "comp-hub-team-home",
+                        entity_name_spans(partido$local),
+                        get_logo_tag(partido$local, path_to_root = "..", css_class = "comp-hub-team-logo")
+                      ),
+                      tags$span(class = "comp-hub-match-score", resultado_texto),
+                      tags$span(class = "comp-hub-team-away",
+                        get_logo_tag(partido$visitante, path_to_root = "..", css_class = "comp-hub-team-logo"),
+                        entity_name_spans(partido$visitante)
+                      )
+                    )
                   )
 
-                  if (is_placeholder_match || is_cancelled) {
-                    tags$div(class = if (is_cancelled) "partido-link-cancelled" else "partido-link-placeholder", contenido_comun)
+                  if (is_clickable) {
+                    tags$a(class = wrapper_class, href = file.path("..", nombres_carpetas_relativos$partidos, paste0(partido$id_partido, ".html")), match_content)
                   } else {
-                    tags$a(class = "partido-link", href = file.path("..", nombres_carpetas_relativos$partidos, paste0(partido$id_partido, ".html")), contenido_comun)
+                    tags$div(class = wrapper_class, match_content)
                   }
                 })
               )

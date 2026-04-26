@@ -23,14 +23,14 @@ th { background-color: #f2f2f2; }
 .portal-button { width: 80%; padding: 20px; font-size: 1.3em; background-color: #8B0000; } .portal-button:hover { background-color: #660000; }
 .sortable-header { cursor: pointer; user-select: none; } .sortable-header::after { content: ' '; display: inline-block; margin-left: 5px; }
 .sortable-header.asc::after { content: '\25B2'; } .sortable-header.desc::after { content: '\25BC'; }
-.partido-link, .partido-link-placeholder { display: flex; justify-content: space-between; align-items: center; padding: 15px; margin: 10px 0; background-color: #e9ecef; border-radius: 5px; }
+.partido-link { display: flex; align-items: center; padding: 15px; margin: 10px 0; background-color: #e9ecef; border-radius: 5px; }
 .partido-link { transition: background-color 0.2s; }
-.partido-link-placeholder { cursor: default; }
+.partido-link-placeholder { display: flex; align-items: center; padding: 15px; margin: 10px 0; background-color: #e9ecef; border-radius: 5px; cursor: default; }
 .partido-link:hover { background-color: #ced4da; }
-.partido-link span.equipo, .partido-link-placeholder span.equipo { flex: 1 1 40%; display: flex; align-items: center; font-weight: bold; }
-.partido-link span.equipo-local, .partido-link-placeholder span.equipo-local { justify-content: flex-end; }
-.partido-link span.equipo-visitante, .partido-link-placeholder span.equipo-visitante { justify-content: flex-start; }
-.partido-link span.resultado, .partido-link-placeholder span.resultado { flex: 0 0 12%; font-size: 1.2em; font-weight: bold; text-align: center; }
+.partido-link span.equipo, .partido-link-placeholder span.equipo, .partido-link-cancelled span.equipo { flex: 1; display: flex; align-items: center; font-weight: bold; }
+.partido-link span.equipo-local, .partido-link-placeholder span.equipo-local, .partido-link-cancelled span.equipo-local { justify-content: flex-end; flex-direction: row-reverse; }
+.partido-link span.equipo-visitante, .partido-link-placeholder span.equipo-visitante, .partido-link-cancelled span.equipo-visitante { justify-content: flex-start; flex-direction: row-reverse; }
+.partido-link span.resultado, .partido-link-placeholder span.resultado, .partido-link-cancelled span.resultado { flex: 0 0 12%; font-size: 1.2em; font-weight: bold; text-align: center; }
 .jornada-header { background-color: #8B0000; color: white; padding: 10px; border-radius: 5px; margin-top: 30px; }
 .timeline { list-style: none; padding-left: 0; } .timeline li { padding: 8px 0; border-bottom: 1px dotted #ccc; display: flex; align-items: center; }
 .timeline .icon { margin-right: 10px; font-size: 1.2em; width: 24px; text-align: center; }
@@ -60,13 +60,13 @@ th { background-color: #f2f2f2; }
 .legend { margin-top: 20px; padding: 10px; text-align: left; font-size: 0.9em; }
 .legend-item { display: inline-flex; align-items: center; margin-right: 20px; margin-bottom: 5px; }
 .legend-color-box { width: 15px; height: 15px; border: 1px solid #ccc; margin-right: 8px; flex-shrink: 0; }
-.team-logo { max-height: 24px; max-width: 24px; height: auto; width: auto; object-fit: contain; }
+.team-logo { width: 24px; height: 24px; object-fit: contain; flex-shrink: 0; }
 .team-logo.national-team-flag { border-radius: 50%; border: 1px solid #ccc; }
 .team-cell { display: flex; align-items: center; }
 .team-cell .team-logo { margin-right: 12px; }
 .partido-link .team-logo { max-height: 28px; max-width: 28px; height: auto; width: auto; }
-.partido-link .equipo-local .team-logo { margin-right: 10px; }
-.partido-link .equipo-visitante .team-logo { margin-left: 10px; }
+.partido-link .equipo-local .team-logo, .partido-link-placeholder .equipo-local .team-logo, .partido-link-cancelled .equipo-local .team-logo { margin-left: 10px; }
+.partido-link .equipo-visitante .team-logo, .partido-link-placeholder .equipo-visitante .team-logo, .partido-link-cancelled .equipo-visitante .team-logo { margin-right: 10px; }
 .alineacion-header { text-align: center; margin-bottom: 20px; }
 .alineacion-header .match-page-crest, .team-page-crest { width: 120px; height: 120px; object-fit: contain; margin: 10px auto; display: block; }
 .alineacion-header h3 { border-bottom: none; padding-bottom: 0; margin-bottom: 5px; }
