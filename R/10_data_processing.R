@@ -305,27 +305,45 @@ if (!exists("official_results_df")) {
   }
 }
 
-# Defensive fallback in case the loader script did not define cancelled IDs.
-if (!exists("cancelled_matches_ids")) {
-  cancelled_matches_ids <- character(0)
+# Defensive fallback in case the loader script did not define cancelled IDs/rules.
+if (!exists("cancelled_matches_ids") || !exists("cancelled_matches_rules")) {
+  cancelled_matches_ids <- if (exists("cancelled_matches_ids")) cancelled_matches_ids else character(0)
+  cancelled_matches_rules <- if (exists("cancelled_matches_rules")) cancelled_matches_rules else tibble(club = character(), competicion = character(), jornada_inicio = integer())
+  
   ruta_cancelados_candidates <- c("cancelled_matches.txt", "dictionaries/cancelled_matches.txt")
   ruta_cancelados_existente <- ruta_cancelados_candidates[file.exists(ruta_cancelados_candidates)]
 
   if (length(ruta_cancelados_existente) > 0) {
     tryCatch({
-      temp_lines <- readLines(ruta_cancelados_existente[[1]], warn = FALSE)
+      temp_lines <- readLines(ruta_cancelados_existente[[1]], warn = FALSE, encoding = "UTF-8")
       temp_lines <- trimws(temp_lines)
       temp_lines <- temp_lines[temp_lines != "" & !startsWith(temp_lines, "#")]
-      # Only single-value lines (no comma) are plain match IDs.
-      # Lines with commas are team withdrawal rules (handled by scraper).
-      plain_id_lines <- temp_lines[!grepl(",", temp_lines)]
-      cancelled_matches_ids <- plain_id_lines
-      message(paste("   > Loaded", length(cancelled_matches_ids), "cancelled match IDs from", ruta_cancelados_existente[[1]]))
+      
+      # Rules with commas (retroactive withdrawal)
+      rules_lines <- temp_lines[grepl(",", temp_lines)]
+      if (length(rules_lines) > 0) {
+        cancelled_matches_rules <- map_dfr(rules_lines, function(l) {
+          parts <- str_split(l, ",", simplify = TRUE)
+          if (ncol(parts) >= 3) {
+            tibble(
+              club = str_trim(parts[1]),
+              competicion = str_trim(parts[2]),
+              jornada_inicio = as.integer(str_trim(parts[3]))
+            )
+          } else {
+            NULL
+          }
+        })
+      }
+      
+      # Plain IDs
+      cancelled_matches_ids <- temp_lines[!grepl(",", temp_lines)]
+      message(paste("   > Loaded", nrow(cancelled_matches_rules), "withdrawal rules and", length(cancelled_matches_ids), "plain IDs from", ruta_cancelados_existente[[1]]))
     }, error = function(e) {
-      warning("Could not load cancelled matches list. Continuing with an empty list.")
+      warning("Could not load cancelled matches list. Continuing with empty lists.")
     })
   } else {
-    message("   > Cancelled matches list not found. Continuing with an empty list.")
+    message("   > Cancelled matches list not found. Continuing with empty lists.")
   }
 }
 
@@ -390,10 +408,26 @@ partidos_df <- partidos_df %>%
     competicion_temporada = ajustar_temporada_baraz(competicion_nombre, competicion_temporada)
   )
 
-# 10.1.1.0 Calculate cancellation status: combine explicit IDs + scraper-set flags
+# 10.1.1.0 Calculate cancellation status: combine explicit IDs + scraper-set flags + retroactive withdrawal rules
 partidos_df <- partidos_df %>%
   mutate(
+    # Apply withdrawal rules retroactively to all matches (even if already in cache)
+    .es_retirado_por_regla = sapply(seq_len(n()), function(i) {
+      if (nrow(cancelled_matches_rules) == 0) return(FALSE)
+      
+      p_local <- tolower(trimws(local[i]))
+      p_visit <- tolower(trimws(visitante[i]))
+      # Reconstruct full competition name as found in rules (Name + Season)
+      p_comp_completa <- tolower(trimws(paste(competicion_nombre[i], temporada_display[i])))
+      p_jornada <- as.integer(jornada[i])
+      
+      any(cancelled_matches_rules$jornada_inicio <= p_jornada &
+          tolower(trimws(cancelled_matches_rules$competicion)) == p_comp_completa &
+          (tolower(trimws(cancelled_matches_rules$club)) == p_local | 
+           tolower(trimws(cancelled_matches_rules$club)) == p_visit))
+    }),
     es_cancelado = coalesce(
+      if_else(.es_retirado_por_regla, TRUE, NA),
       # 1. If the scraper already set es_cancelado, use that
       if ("es_cancelado" %in% names(.)) es_cancelado else NA,
       # 2. Otherwise check if the match ID is in the cancelled list
@@ -401,7 +435,8 @@ partidos_df <- partidos_df %>%
       # 3. Default to FALSE
       FALSE
     )
-  )
+  ) %>%
+  select(-.es_retirado_por_regla)
 
 # 10.1.1.1. Normalize and attach competition category to each match
 normalize_competition_name_for_lookup <- function(name) {
@@ -1572,11 +1607,22 @@ competiciones_previas_ids <- if (file.exists(ruta_comp_log)) readRDS(ruta_comp_l
 competiciones_actuales_ids <- competiciones_unicas_df$competicion_id
 competiciones_nuevas_ids <- setdiff(competiciones_actuales_ids, competiciones_previas_ids)
 
-# Cargar cach\u00e9 de cancelados previos
+# Cargar caché de cancelados previos (IDs y Reglas)
 ruta_cancelados_cache <- "cancelled_matches_cache.rds"
-cancelled_previos <- if (file.exists(ruta_cancelados_cache)) readRDS(ruta_cancelados_cache) else character(0)
-new_cancelled_ids <- setdiff(cancelled_matches_ids, cancelled_previos)
-# >>> FIN DEL C\u00d3DIGO A\u00d1ADIDO (Paso 1) <<<
+cancelados_cache_previo <- if (file.exists(ruta_cancelados_cache)) readRDS(ruta_cancelados_cache) else list(ids = character(0), rules = tibble())
+
+# Extraer componentes (manejo robusto si el cache antiguo solo tenía un vector de IDs)
+if (is.list(cancelados_cache_previo) && "ids" %in% names(cancelados_cache_previo)) {
+  cancelled_previos_ids <- cancelados_cache_previo$ids
+  cancelled_previas_rules <- if ("rules" %in% names(cancelados_cache_previo)) cancelados_cache_previo$rules else tibble()
+} else {
+  cancelled_previos_ids <- cancelados_cache_previo
+  cancelled_previas_rules <- tibble()
+}
+
+new_cancelled_ids <- setdiff(cancelled_matches_ids, cancelled_previos_ids)
+rules_changed <- !identical(cancelled_matches_rules, cancelled_previas_rules)
+# >>> FIN DEL CÓDIGO AÑADIDO (Paso 1) <<<
 
 ruta_build_log <- "build_log.rds"
 partidos_previamente_construidos_ids <- if (file.exists(ruta_build_log)) readRDS(ruta_build_log) else character(0)
@@ -1605,7 +1651,7 @@ if (length(partidos_modificados_ids) > 0) {
   message(paste("   >", length(partidos_modificados_ids), "modified match(es) added to incremental update scope."))
 }
 
-hubo_cambios <- length(affected_match_ids) > 0 || length(partidos_eliminados_ids) > 0 || length(new_cancelled_ids) > 0
+hubo_cambios <- length(affected_match_ids) > 0 || length(partidos_eliminados_ids) > 0 || length(new_cancelled_ids) > 0 || rules_changed
 
 affected_competition_ids <- character(0)
 affected_player_ids <- character(0)
@@ -1614,16 +1660,22 @@ affected_referee_ids <- character(0)
 affected_stadium_ids <- character(0)
 affected_staff_ids <- character(0)
 
-# If any match was just cancelled, we MUST regenerate its competition hub
-if (length(new_cancelled_ids) > 0) {
+# If any match was just cancelled (by ID or because rules changed), we MUST regenerate its competition hub
+if (length(new_cancelled_ids) > 0 || rules_changed) {
+  ids_a_revisar <- new_cancelled_ids
+  if (rules_changed) {
+    # Si las reglas han cambiado, regeneramos las competiciones que tengan partidos cancelados
+    ids_a_revisar <- unique(c(ids_a_revisar, partidos_df %>% filter(es_cancelado) %>% pull(id_partido)))
+  }
+  
   comps_to_regen <- partidos_df %>%
-    filter(id_partido %in% new_cancelled_ids) %>%
+    filter(id_partido %in% ids_a_revisar) %>%
     distinct(competicion_nombre, competicion_temporada) %>%
-      left_join(competiciones_unicas_df %>% select(-any_of("categoria")), by = c("competicion_nombre", "competicion_temporada")) %>%
+    left_join(competiciones_unicas_df %>% select(-any_of("categoria")), by = c("competicion_nombre", "competicion_temporada")) %>%
     pull(competicion_id)
 
   affected_competition_ids <- unique(c(affected_competition_ids, comps_to_regen))
-  message(paste("   >", length(new_cancelled_ids), "newly cancelled match(es) detected. Competing hubs will be updated."))
+  message(paste("   >", length(new_cancelled_ids), "newly cancelled match(es) or rules change detected. Competing hubs will be updated."))
 }
 
 if (hubo_cambios) {
@@ -1668,7 +1720,7 @@ if (file.exists(ruta_sanciones_clubes)) {
   )
 }
 
-# 10.9. Save Cancelled Matches Cache
-if (exists("cancelled_matches_ids")) {
-  saveRDS(cancelled_matches_ids, "cancelled_matches_cache.rds")
+# 10.9. Save Cancelled Matches Cache (IDs and Rules)
+if (exists("cancelled_matches_ids") && exists("cancelled_matches_rules")) {
+  saveRDS(list(ids = cancelled_matches_ids, rules = cancelled_matches_rules), "cancelled_matches_cache.rds")
 }
