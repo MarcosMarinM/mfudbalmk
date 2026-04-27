@@ -338,8 +338,15 @@ if (!exists("cancelled_matches_ids") || !exists("cancelled_matches_rules")) {
       
       # Plain IDs
       cancelled_matches_ids <- temp_lines[!grepl(",", temp_lines)]
+      
+      # Apply name conversions to rules to match processed data
+      if (nrow(cancelled_matches_rules) > 0 && exists("mapa_conversiones_df") && !is.null(mapa_conversiones_df)) {
+        cancelled_matches_rules <- aplicar_conversiones(cancelled_matches_rules, c("club", "competicion"), mapa_conversiones_df)
+      }
+      
       message(paste("   > Loaded", nrow(cancelled_matches_rules), "withdrawal rules and", length(cancelled_matches_ids), "plain IDs from", ruta_cancelados_existente[[1]]))
     }, error = function(e) {
+
       warning("Could not load cancelled matches list. Continuing with empty lists.")
     })
   } else {
@@ -415,16 +422,37 @@ partidos_df <- partidos_df %>%
     .es_retirado_por_regla = sapply(seq_len(n()), function(i) {
       if (nrow(cancelled_matches_rules) == 0) return(FALSE)
       
-      p_local <- tolower(trimws(local[i]))
-      p_visit <- tolower(trimws(visitante[i]))
+      # Helper to normalize club names by removing common prefixes (FK, ФК, etc.)
+      norm_club <- function(x) {
+        tolower(trimws(str_replace_all(x, "(?i)^\\s*(fk|фк|жфк|zfk|shfk|шфк)\\s+", "")))
+      }
+      
+      p_local <- norm_club(local[i])
+      p_visit <- norm_club(visitante[i])
       # Reconstruct full competition name as found in rules (Name + Season)
       p_comp_completa <- tolower(trimws(paste(competicion_nombre[i], temporada_display[i])))
       p_jornada <- as.integer(jornada[i])
       
       any(cancelled_matches_rules$jornada_inicio <= p_jornada &
           tolower(trimws(cancelled_matches_rules$competicion)) == p_comp_completa &
-          (tolower(trimws(cancelled_matches_rules$club)) == p_local | 
-           tolower(trimws(cancelled_matches_rules$club)) == p_visit))
+          (norm_club(cancelled_matches_rules$club) == p_local | 
+           norm_club(cancelled_matches_rules$club) == p_visit))
+    }),
+    # Identify if a team is retired from the competition AT ALL (ignoring jornada_inicio for point exclusion)
+    .es_equipo_retirado = sapply(seq_len(n()), function(i) {
+      if (nrow(cancelled_matches_rules) == 0) return(FALSE)
+      
+      norm_club <- function(x) {
+        tolower(trimws(str_replace_all(x, "(?i)^\\s*(fk|фк|жфк|zfk|shfk|шфк)\\s+", "")))
+      }
+      
+      p_local <- norm_club(local[i])
+      p_visit <- norm_club(visitante[i])
+      p_comp_completa <- tolower(trimws(paste(competicion_nombre[i], temporada_display[i])))
+      
+      any(tolower(trimws(cancelled_matches_rules$competicion)) == p_comp_completa &
+          (norm_club(cancelled_matches_rules$club) == p_local | 
+           norm_club(cancelled_matches_rules$club) == p_visit))
     }),
     es_cancelado = coalesce(
       if_else(.es_retirado_por_regla, TRUE, NA),
@@ -434,9 +462,12 @@ partidos_df <- partidos_df %>%
       as.character(id_partido) %in% cancelled_matches_ids,
       # 3. Default to FALSE
       FALSE
-    )
+    ),
+    es_retirado = .es_equipo_retirado
   ) %>%
-  select(-.es_retirado_por_regla)
+  select(-.es_retirado_por_regla, -.es_equipo_retirado)
+
+
 
 # 10.1.1.1. Normalize and attach competition category to each match
 normalize_competition_name_for_lookup <- function(name) {
@@ -575,13 +606,15 @@ goles_df_unificado <- map_dfr(resultados_exitosos, "goles")
 tarjetas_df_unificado <- map_dfr(resultados_exitosos, "tarjetas")
 penales_df_unificado <- map_dfr(resultados_exitosos, "penales")
 
-  # Exclude stats for matches that are cancelled or have an official result override
-  ids_excluidos_stats <- partidos_df %>% filter(isTRUE(es_cancelado) | isTRUE(es_resultado_oficial)) %>% pull(id_partido)
+  # Exclude stats for matches that are cancelled, involve retired teams, or have an official result override
+  ids_excluidos_stats <- partidos_df %>% filter((es_cancelado %in% TRUE) | (es_retirado %in% TRUE) | (es_resultado_oficial %in% TRUE)) %>% pull(id_partido)
+
   if (length(ids_excluidos_stats) > 0) {
     if (nrow(goles_df_unificado) > 0) goles_df_unificado <- goles_df_unificado %>% filter(!id_partido %in% ids_excluidos_stats)
     if (nrow(tarjetas_df_unificado) > 0) tarjetas_df_unificado <- tarjetas_df_unificado %>% filter(!id_partido %in% ids_excluidos_stats)
     if (!is.null(penales_df_unificado) && nrow(penales_df_unificado) > 0) penales_df_unificado <- penales_df_unificado %>% filter(!id_partido %in% ids_excluidos_stats)
   }
+
 
 arbitros_df <- map_dfr(resultados_exitosos, function(res) {
   if (is.null(res) || is.null(res$partido_info)) {

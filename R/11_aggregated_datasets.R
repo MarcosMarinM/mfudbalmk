@@ -82,37 +82,39 @@ stats_clasificacion_por_comp_df <- competiciones_unicas_df %>%
         competicion_nombre == grupo_actual$competicion_nombre, 
         competicion_temporada == grupo_actual$competicion_temporada,
         !is.na(id_partido),
-        (!isTRUE(es_cancelado) | isTRUE(es_resultado_oficial))  # Cancelled matches = 0 points for both teams unless they have an official result
+        !(es_cancelado %in% TRUE),
+        !(es_retirado %in% TRUE)
       )
     
-    # --- LA CORRECCI\u00d3N EST\u00c1 AQU\u00cd ---
+    # --- LA CORRECCIÓN ESTÁ AQUÍ ---
     # En lugar de usar return(), usamos una estructura if/else completa.
-    # Si no hay partidos, el bloque devuelve un tibble vac\u00edo.
-    # Si hay partidos, el bloque else se ejecuta y devuelve la tabla de clasificaci\u00f3n.
+    # Si no hay partidos, el bloque devuelve un tibble vacío.
+    # Si hay partidos, el bloque else se ejecuta y devuelve la tabla de clasificación.
     if (nrow(partidos_comp_raw) == 0) {
       
-      tibble() # Devuelve un tibble vac\u00edo para este grupo
+      tibble() # Devuelve un tibble vacío para este grupo
       
     } else {
       
-      # Todo el c\u00f3digo que calcula la clasificaci\u00f3n va aqu\u00ed dentro del 'else'
+      # Todo el código que calcula la clasificación va aquí dentro del 'else'
       partidos_comp <- partidos_comp_raw %>%
         mutate(
           goles_local_calc = goles_local,
           goles_visitante_calc = goles_visitante,
           goles_local_calc = case_when(
-            isTRUE(es_resultado_oficial) & goles_local > goles_visitante ~ 3,
-            isTRUE(es_resultado_oficial) & goles_visitante > goles_local ~ 0,
-            isTRUE(es_resultado_oficial) & goles_local == goles_visitante ~ 3,
+            (es_resultado_oficial %in% TRUE) & goles_local > goles_visitante ~ 3,
+            (es_resultado_oficial %in% TRUE) & goles_visitante > goles_local ~ 0,
+            (es_resultado_oficial %in% TRUE) & goles_local == goles_visitante ~ 3,
             TRUE ~ goles_local_calc
           ),
           goles_visitante_calc = case_when(
-            isTRUE(es_resultado_oficial) & goles_local > goles_visitante ~ 0,
-            isTRUE(es_resultado_oficial) & goles_visitante > goles_local ~ 3,
-            isTRUE(es_resultado_oficial) & goles_local == goles_visitante ~ 0,
+            (es_resultado_oficial %in% TRUE) & goles_local > goles_visitante ~ 0,
+            (es_resultado_oficial %in% TRUE) & goles_visitante > goles_local ~ 3,
+            (es_resultado_oficial %in% TRUE) & goles_local == goles_visitante ~ 0,
             TRUE ~ goles_visitante_calc
           )
         )
+
       
       locales <- partidos_comp %>% 
         select(team = local, GF = goles_local_calc, GA = goles_visitante_calc)
