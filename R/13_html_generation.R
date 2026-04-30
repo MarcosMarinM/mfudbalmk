@@ -637,11 +637,13 @@ if (hubo_cambios) {
               tags$ul(
                 map(1:nrow(grupo), function(i) {
                   equipo <- grupo[i, ]
-                  tags$li(
-                    tags$a(
-                      href = file.path(nombres_carpetas_relativos$timovi, paste0(generar_id_seguro(equipo$original_name), ".html")),
-                      entity_name_spans(equipo$original_name)
-                    )
+                      tags$li(
+                        tags$a(
+                          href = file.path(nombres_carpetas_relativos$timovi, paste0(generar_id_seguro(equipo$original_name), ".html")),
+                          class = "team-list-link",
+                          get_logo_tag(equipo$original_name, path_to_root = "."),
+                          entity_name_spans(equipo$original_name)
+                        )
                   )
                 })
               )

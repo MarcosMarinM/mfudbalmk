@@ -165,6 +165,7 @@ th { background-color: #f2f2f2; }
 .letter-group.active { display: block; }
 .player-list ul, .team-list ul, .players-alphabetical-list ul { list-style: none; padding: 0; columns: 3; column-gap: 20px; }
 .player-list li, .team-list li, .players-alphabetical-list li { padding: 5px 0; }
+.team-list-link { display: flex; align-items: center; gap: 8px; }
 @media (max-width: 768px) { .player-list ul, .team-list ul, .players-alphabetical-list ul { columns: 2; } }
 @media (max-width: 480px) { .player-list ul, .team-list ul, .players-alphabetical-list ul { columns: 1; } }
 .player-profile-header-new { display: flex; align-items: center; background-color: #f8f9fa; border-radius: 8px; padding: 20px; gap: 30px; margin-bottom: 30px; border: 1px solid #e9ecef; flex-wrap: wrap; }
