@@ -1745,7 +1745,7 @@ if (hubo_cambios) {
 }
 
 ### 10.X. Load club sanctions (point deductions)
-ruta_sanciones_clubes <- "sanciones_clubes.txt"
+ruta_sanciones_clubes <- "sanctions.txt"
 if (file.exists(ruta_sanciones_clubes)) {
   sanciones_clubes_df <- read.csv(ruta_sanciones_clubes, stringsAsFactors = FALSE, encoding = "UTF-8")
   message(paste("   > Loaded", nrow(sanciones_clubes_df), "club sanctions from", ruta_sanciones_clubes))
@@ -1754,6 +1754,27 @@ if (file.exists(ruta_sanciones_clubes)) {
     competicion_nombre = character(), competicion_temporada = character(),
     equipo = character(), puntos_deducidos = integer(), motivo = character()
   )
+}
+
+# Resolve "corrected" (translated/display) competition names to internal names.
+# This lets users write e.g. "Прва лига" (from competitions.txt column B) instead of the raw "Прва МФЛ".
+if (nrow(sanciones_clubes_df) > 0 && exists("competiciones_unicas_df") && nrow(competiciones_unicas_df) > 0) {
+  comp_name_lookup <- bind_rows(
+    competiciones_unicas_df %>% transmute(name_variant = base_name_mk,   canonical_name = competicion_nombre),
+    competiciones_unicas_df %>% transmute(name_variant = base_name_sq,   canonical_name = competicion_nombre),
+    competiciones_unicas_df %>% transmute(name_variant = base_name_es,   canonical_name = competicion_nombre),
+    competiciones_unicas_df %>% transmute(name_variant = base_name_en,   canonical_name = competicion_nombre)
+  ) %>%
+    filter(!is.na(name_variant)) %>%
+    distinct(name_variant, canonical_name)
+  n_resolved <- sanciones_clubes_df %>%
+    inner_join(comp_name_lookup, by = c("competicion_nombre" = "name_variant")) %>%
+    nrow()
+  sanciones_clubes_df <- sanciones_clubes_df %>%
+    left_join(comp_name_lookup, by = c("competicion_nombre" = "name_variant")) %>%
+    mutate(competicion_nombre = coalesce(canonical_name, competicion_nombre)) %>%
+    select(-canonical_name)
+  if (n_resolved > 0) message(paste("   > Resolved", n_resolved, "competition names via translation lookup."))
 }
 
 # 10.9. Save Cancelled Matches Cache (IDs and Rules)
