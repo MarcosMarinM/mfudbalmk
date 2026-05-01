@@ -1747,12 +1747,22 @@ if (hubo_cambios) {
 ### 10.X. Load club sanctions (point deductions)
 ruta_sanciones_clubes <- "sanctions.txt"
 if (file.exists(ruta_sanciones_clubes)) {
-  sanciones_clubes_df <- read.csv(ruta_sanciones_clubes, stringsAsFactors = FALSE, encoding = "UTF-8")
+  sanciones_clubes_df <- read.csv(ruta_sanciones_clubes, stringsAsFactors = FALSE, encoding = "UTF-8", 
+                                  colClasses = c("equipo" = "character", "competicion_nombre" = "character", 
+                                                 "competicion_temporada" = "character", "puntos_deducidos" = "numeric"))
+  # Defensive cast to handle any NAs introduced by coercion if data was shifted
+  sanciones_clubes_df <- sanciones_clubes_df %>%
+    mutate(
+      equipo = as.character(equipo),
+      competicion_nombre = as.character(competicion_nombre),
+      competicion_temporada = as.character(competicion_temporada),
+      puntos_deducidos = as.numeric(puntos_deducidos)
+    )
   message(paste("   > Loaded", nrow(sanciones_clubes_df), "club sanctions from", ruta_sanciones_clubes))
 } else {
   sanciones_clubes_df <- tibble(
     competicion_nombre = character(), competicion_temporada = character(),
-    equipo = character(), puntos_deducidos = integer(), motivo = character()
+    equipo = character(), puntos_deducidos = numeric(), motivo = character()
   )
 }
 

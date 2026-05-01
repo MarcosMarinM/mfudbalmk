@@ -144,7 +144,8 @@ stats_clasificacion_por_comp_df <- competiciones_unicas_df %>%
           sanciones_clubes_df %>%
             filter(competicion_nombre == grupo_actual$competicion_nombre,
                    competicion_temporada == grupo_actual$competicion_temporada) %>%
-            select(team = equipo, puntos_deducidos),
+            select(team = equipo, puntos_deducidos) %>%
+            mutate(team = as.character(team), puntos_deducidos = as.numeric(puntos_deducidos)),
           by = "team"
         ) %>%
         mutate(

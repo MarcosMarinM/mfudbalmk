@@ -396,7 +396,13 @@ if (hubo_cambios) {
       comp_nombre_actual_lang <- comp_info[[comp_name_col]][1]
 
       ultima_jornada_jugada_df <- valid_partidos_df %>%
-        filter(competicion_nombre == nombre_comp_mk, competicion_temporada == temporada_actual_str, !is.na(id_partido))
+        filter(
+          competicion_nombre == nombre_comp_mk, 
+          competicion_temporada == temporada_actual_str, 
+          !is.na(id_partido),
+          !is.na(goles_local),
+          !(es_cancelado %in% TRUE)
+        )
 
       bloque_resultados_html <- NULL
       if (nrow(ultima_jornada_jugada_df) > 0) {
@@ -1095,7 +1101,12 @@ if (hubo_cambios) {
           get_logo_path_relativo <- function(nombre_equipo_mk) get_club_logo_path(nombre_equipo_mk)
 
           # --- 2. Preparar datos de JORNADAS (Schedule) ---
-          partidos_jugados <- partidos_comp %>% filter(!is.na(id_partido))
+          partidos_jugados <- partidos_comp %>% 
+            filter(
+              !is.na(id_partido),
+              !is.na(goles_local),
+              !(es_cancelado %in% TRUE)
+            )
           jornada_por_defecto_raw <- NA_character_
 
           if (nrow(partidos_jugados) > 0) {
