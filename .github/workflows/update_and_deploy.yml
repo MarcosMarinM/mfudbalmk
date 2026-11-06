@@ -1,20 +1,9 @@
 name: Scrape, build and deploy
 
 on:
-  schedule:
-    # --- TEMPORADA ALTA (febrero a mayo / agosto a noviembre) ---
-    # Lunes a viernes a las 17:00 y 23:00 (aprox. 15:00 y 21:00 UTC)
-    - cron: '0 15,21 * 2,3,4,5,8,9,10,11 1-5'
-    
-    # Sábados y domingos: intenso (11:00, 13:00, 15:00, 17:00, 19:00, 21:00 y 23:00 hora local)
-    # En UTC sería aprox.: 9, 11, 13, 15, 17, 19, 21
-    - cron: '0 9,11,13,15,17,19,21 * 2,3,4,5,8,9,10,11 0,6'
-
-    # --- PERÍODOS DE DESCANSO (dic, ene, jun, jul) ---
-    # Una vez al día a las 23:00 (21:00 UTC) para asegurar la caché de la carpeta docs
-    - cron: '0 21 * 1,6,7,12 *'
-
-  workflow_dispatch: # Permite ejecución manual desde la web de GitHub
+  # Flujo automático detenido temporalmente: el scrape, build y deploy solo
+  # se ejecutan de forma manual desde la web de GitHub (workflow_dispatch).
+  workflow_dispatch:
 
 concurrency:
   group: scraper-unico
